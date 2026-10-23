@@ -281,6 +281,27 @@ aritmética ou o calendário mudarem.
 > modelo, banco, RLS, calendário, arredondamento, as divergências encontradas nas
 > planilhas (com os valores) e o que ficou em aberto para a contabilidade.
 
+## Plano gerencial & Central de Gastos
+
+Em construção por fases (plano em
+[`docs/features/central-de-gastos-plan.md`](docs/features/central-de-gastos-plan.md)).
+**Fase 0 feita:** `management_accounts` (plano gerencial da organização, grupo → item) e
+o mapa conta → item, editados em `/settings/management-plan`. Nada lê o plano ainda; a
+Fase 1 migra o Balanço para ele.
+
+⚠️ **O item gerencial sai da CONTA, não do lançamento.** O mapa mora em
+`chart_of_accounts_master.management_account_id` (vale para todas as empresas);
+`chart_of_accounts.management_account_id` é exceção de uma empresa; conta sem nenhum dos
+dois cai no item padrão do tipo (`default_management_account_code`). A regra efetiva tem
+UMA implementação: `v_account_management_map`. Não recombine as três fontes no cliente.
+
+⚠️ **Conta aponta para ITEM, nunca para grupo** (trigger
+`check_account_management_mapping`) — grupo como destino deixaria o Balanço sem saber em
+que linha somar. Plano tem exatamente dois níveis e item herda o `kind` do grupo.
+
+⚠️ **O `code` do item é a chave estável** (`pessoas.salario_fixo`): migration futura
+referencia por ele. O nome pode mudar na tela; o código não.
+
 ## Escopo de empresa & grupos de agregação
 
 O seletor superior tem **três** formas de escopo, não duas: uma empresa, `Consolidado`

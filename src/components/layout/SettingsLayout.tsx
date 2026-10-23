@@ -5,6 +5,7 @@ import { cn } from "@/lib/cn";
 const NAV = [
   { to: "/settings/banks", label: "Contas bancárias" },
   { to: "/settings/cost-centers", label: "Centros de custo" },
+  { to: "/settings/management-plan", label: "Plano gerencial" },
   { to: "/settings/counterparties", label: "Contrapartes" },
   { to: "/settings/payroll", label: "Folha de pagamento" },
 ] as const;
@@ -79,6 +80,8 @@ function descricaoFor(to: string): string {
       return "Adicionar ou editar contas bancárias e saldos iniciais.";
     case "/settings/cost-centers":
       return "Departamentos, filiais e projetos usados na alocação de despesas.";
+    case "/settings/management-plan":
+      return "O que cada gasto é — pessoas, tecnologia, ocupação —, a partir da conta contábil.";
     case "/settings/counterparties":
       return "Clientes, fornecedores e demais contrapartes vinculadas a lançamentos.";
     default:

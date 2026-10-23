@@ -42,6 +42,7 @@ const AuditPage = lazy(() => import("@/routes/audit"));
 const RecurringPage = lazy(() => import("@/routes/recurring"));
 const SettingsBanksPage = lazy(() => import("@/routes/settings.banks"));
 const SettingsCostCentersPage = lazy(() => import("@/routes/settings.cost-centers"));
+const SettingsManagementPlanPage = lazy(() => import("@/routes/settings.management-plan"));
 const SettingsCounterpartiesPage = lazy(() => import("@/routes/settings.counterparties"));
 const SettingsPayrollPage = lazy(() => import("@/routes/settings.payroll"));
 const CompaniesPage = lazy(() => import("@/routes/companies"));
@@ -128,6 +129,7 @@ export default function App() {
                     <Route path="settings" element={<SettingsLayout />}>
                       <Route path="banks" element={<SettingsBanksPage />} />
                       <Route path="cost-centers" element={<SettingsCostCentersPage />} />
+                      <Route path="management-plan" element={<SettingsManagementPlanPage />} />
                       <Route path="counterparties" element={<SettingsCounterpartiesPage />} />
                       <Route path="payroll" element={<SettingsPayrollPage />} />
                     </Route>
