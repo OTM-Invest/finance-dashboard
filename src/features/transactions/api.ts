@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 
+import { COUNTERPARTY_MATCH_CAP, normalizeSearchTerm, transactionSearchOr } from "./search";
 import {
   NO_BANK_ACCOUNT,
   type TransactionFilters,
@@ -19,6 +20,39 @@ const SELECT_WITH_RELATIONS = `
   bank_account:bank_accounts!transactions_bank_account_id_fkey(id, nickname, bank_name),
   counterparty:counterparties!transactions_counterparty_id_fkey(id, name)
 ` as const;
+
+/**
+ * Ids dos fornecedores cujo nome casa com o termo. Passo 1 da busca livre —
+ * ver `search.ts` para o porquê de não ser um join.
+ *
+ * A RLS de `counterparties` continua valendo: quem não enxerga a contraparte
+ * não recebe o id dela e, portanto, não acha o lançamento por esse caminho.
+ */
+async function matchingCounterpartyIds(term: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("counterparties")
+    .select("id")
+    .ilike("name", `%${term}%`)
+    .limit(COUNTERPARTY_MATCH_CAP);
+  if (error) throw error;
+  return (data ?? []).map((r) => r.id);
+}
+
+/**
+ * Filtro `or` da busca livre, ou null quando não há termo utilizável.
+ *
+ * Devolve a STRING do filtro, e não a query já filtrada, de propósito: o
+ * builder do PostgREST é thenable, então `await` em cima dele DISPARA a
+ * consulta. Uma função async que recebesse e devolvesse o builder executaria a
+ * query no meio da montagem — e o chamador receberia uma resposta onde esperava
+ * um builder.
+ */
+async function buildSearchFilter(rawTerm: string | null | undefined): Promise<string | null> {
+  const term = normalizeSearchTerm(rawTerm);
+  if (!term) return null;
+  const ids = await matchingCounterpartyIds(term);
+  return transactionSearchOr(term, ids);
+}
 
 export async function fetchTransactions(
   filters: TransactionFilters,
@@ -44,7 +78,9 @@ export async function fetchTransactions(
   if (filters.costCenterId) query = query.eq("cost_center_id", filters.costCenterId);
   if (filters.bankAccountId === NO_BANK_ACCOUNT) query = query.is("bank_account_id", null);
   else if (filters.bankAccountId) query = query.eq("bank_account_id", filters.bankAccountId);
-  if (filters.search) query = query.ilike("description", `%${filters.search}%`);
+  if (filters.counterpartyId) query = query.eq("counterparty_id", filters.counterpartyId);
+  const searchFilter = await buildSearchFilter(filters.search);
+  if (searchFilter) query = query.or(searchFilter);
 
   query = query.order(sortBy, { ascending: sortOrder === "asc" }).range(from, to);
 
@@ -110,7 +146,9 @@ export async function fetchTransactionIds(filters: TransactionFilters): Promise<
   if (filters.costCenterId) query = query.eq("cost_center_id", filters.costCenterId);
   if (filters.bankAccountId === NO_BANK_ACCOUNT) query = query.is("bank_account_id", null);
   else if (filters.bankAccountId) query = query.eq("bank_account_id", filters.bankAccountId);
-  if (filters.search) query = query.ilike("description", `%${filters.search}%`);
+  if (filters.counterpartyId) query = query.eq("counterparty_id", filters.counterpartyId);
+  const searchFilter = await buildSearchFilter(filters.search);
+  if (searchFilter) query = query.or(searchFilter);
 
   const { data, error } = await query.limit(BULK_EDIT_LIMIT);
   if (error) throw error;

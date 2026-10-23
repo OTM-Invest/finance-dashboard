@@ -10,9 +10,14 @@ export interface TransactionColumnMeta {
   contextual?: boolean;
 }
 
-/** Ordem padrão — inclui a nova coluna "Fornecedor" logo após a descrição. */
+/**
+ * Ordem padrão. As três datas ficam juntas e em ordem de ciclo — competência (o
+ * fato), vencimento (o combinado) e caixa (o pago) — porque é assim que se lê
+ * uma linha: o que atrasou é a que tem vencimento no passado e caixa vazia.
+ */
 export const TRANSACTION_COLUMNS: readonly TransactionColumnMeta[] = [
   { id: "accrual_date", label: "Competência" },
+  { id: "due_date", label: "Vencimento" },
   { id: "cash_date", label: "Caixa" },
   { id: "description", label: "Descrição" },
   { id: "counterparty", label: "Fornecedor" },

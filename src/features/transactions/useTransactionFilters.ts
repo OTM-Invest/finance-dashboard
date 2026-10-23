@@ -11,7 +11,7 @@ const STATUS_VALUES = [
   "canceled",
 ] as const satisfies readonly TransactionStatus[];
 
-const SORT_BY_VALUES = ["accrual_date", "cash_date", "amount", "description"] as const;
+const SORT_BY_VALUES = ["accrual_date", "due_date", "cash_date", "amount", "description"] as const;
 const SORT_ORDER_VALUES = ["asc", "desc"] as const;
 
 export function useTransactionFilters() {
@@ -23,6 +23,8 @@ export function useTransactionFilters() {
     accountId: parseAsString.withDefault(""),
     costCenterId: parseAsString.withDefault(""),
     bankAccountId: parseAsString.withDefault(""),
+    // chega pela URL quando se clica numa contraparte no relatório
+    counterpartyId: parseAsString.withDefault(""),
     search: parseAsString.withDefault(""),
     sortBy: parseAsStringLiteral(SORT_BY_VALUES).withDefault("accrual_date"),
     sortOrder: parseAsStringLiteral(SORT_ORDER_VALUES).withDefault("desc"),

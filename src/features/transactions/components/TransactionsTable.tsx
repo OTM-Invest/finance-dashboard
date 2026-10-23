@@ -78,6 +78,16 @@ export function TransactionsTable({
           </span>
         ),
       },
+      due_date: {
+        accessorKey: "due_date",
+        header: "Vencimento",
+        enableSorting: true,
+        cell: ({ row }) => (
+          <span className="font-mono text-xs whitespace-nowrap text-text-subtle">
+            {row.original.due_date ? formatDate(row.original.due_date) : "—"}
+          </span>
+        ),
+      },
       cash_date: {
         accessorKey: "cash_date",
         header: "Caixa",
