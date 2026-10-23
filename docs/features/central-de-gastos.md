@@ -2,8 +2,8 @@
 
 > **Leia isto primeiro** ao continuar o trabalho. Atualizado em 2026-10-23.
 >
-> - Branch: `feat/plano-gerencial` — 4 commits sobre `main` (Fases 0 a 3), **não enviada
->   ao GitHub, sem PR, nada aplicado no remoto**.
+> - Branch: `feat/plano-gerencial` — 8 commits sobre `main` (Fases 0 a 3, Fase 5, a tool
+>   de MCP e a documentação), **não enviada ao GitHub, sem PR, nada aplicado no remoto**.
 > - Histórico completo das decisões, números e simulações:
 >   [`central-de-gastos-plan.md`](central-de-gastos-plan.md). Este documento é o resumo
 >   operacional; o plano é a fonte do "porquê".
@@ -22,7 +22,7 @@ com equipamentos, com equipe, por área" — sem mexer na contabilidade. Três p
    substituem o lançamento na visão gerencial.
 
 Tudo converge numa camada única, `v_management_lines`, que alimenta o **Balanço**
-(`/reports` → Balanço) e vai alimentar a **Central** (`/gastos`, ainda não feita).
+(`/reports` → Balanço), a **Central** (`/gastos`) e a tool de MCP `management_breakdown`.
 
 ## 2. Mudanças de rota (e por quê)
 
@@ -38,6 +38,11 @@ Registre aqui toda vez que o plano mudar — é o que evita refazer discussão.
 | 6   | IA classifica                                                       | **IA só sugere**; só classificação confirmada conta                                                                 | Número do Balanço não pode sair de palpite. Regra é decisão humana e conta como confirmada.                                                                                                                                                                                                      |
 | 7   | Escrita nas tabelas da fatura por RLS                               | **Escrita só por RPC** (`save_card_statement`, `delete_card_statement`), exceto classificar                         | Revisão achou: o Supabase concede ALL a `anon`/`authenticated` em tabela nova; com isso dava para marcar fatura que não fecha como conferida.                                                                                                                                                    |
 | 8   | Regra escrita por admin/editor de qualquer empresa                  | Regra de uma empresa exige escrita nela; regra geral exige admin                                                    | Revisão: a aplicação de regra é `security definer` e alcançava empresas onde o autor não escreve.                                                                                                                                                                                                |
+
+| 9 | Conferência "Σ camada × Σ DRE" | **Camada × lançamentos** (`transactions`), líquido por empresa/mês | O que a camada promete é não criar nem sumir com dinheiro em relação aos lançamentos; a DRE é uma agregação deles com regras próprias (natureza de conta), e comparar com ela misturaria duas perguntas. O bruto difere por construção (estorno de compra vira entrada na camada); o líquido, não. A migration se confere com `assert`. |
+| 10 | `management_breakdown_multi` com mês na chave | **Sem mês na chave**: agregado do período + `months date[]`; `p_by_vendor` e `p_codes` | Com fornecedor e mês o consolidado passaria de mil linhas (o `max_rows` do PostgREST, que corta **sem erro**). Comparação de períodos = chamar de novo com outro intervalo; recorrência sai do array de meses. A tela lê em páginas com ordem total; o MCP usa `p_by_vendor=false` ou `p_codes` e avisa se bater no teto. |
+| 11 | Cartões direto das tabelas | RPC própria `management_card_summary` | Mesmo regime e data (a do lançamento da fatura) da Central — o total por cartão fecha com a origem "cartão" (teste). Parcelas a vencer só da última fatura de cada cartão no período, para não contar a mesma parcela duas vezes. |
+| 12 | Regras da Central no cliente (`src/`) | Em `supabase/functions/_shared/management/breakdown.ts`, reexportadas pela tela | A tool de MCP precisa do mesmo número (padrão de `dre-totais.ts`). |
 
 Decisões de negócio tomadas (plano §12): `9.03 IRRF s/ bônus` → Distribuição; `9.04
 Reembolso de cartão de sócio` → despesa (EBITDA), em "A detalhar"; manutenção opex com
@@ -90,6 +95,32 @@ gerencial; IA liberada (API Anthropic).
 - Telas: botões na fatura (aplicar regras, sugerir, aceitar, criar regra) e
   `/settings/classification-rules`.
 
+### Fase 5 — Central de Gastos (`20261023192736_central_de_gastos.sql`)
+
+- RPCs `security invoker`, padrão `p_company_ids uuid[] default null`, só leitura:
+  - `management_breakdown_multi(p_from, p_to, p_basis, p_company_ids, p_by_vendor, p_codes)`
+    — só itens `expense` (inclui "A detalhar"), por empresa × item × área × natureza ×
+    origem × fornecedor × moeda, com `outflow`, `inflow`, USD, IOF e `months`. Fornecedor =
+    nome da regra › contraparte › descrição normalizada; a chave (maiúsculas) casa entre
+    empresas.
+  - `management_card_summary` — por cartão: total, estorno, USD, IOF, não classificado,
+    parcelas a vencer; só fatura `reconciled`.
+  - `management_reconciliation` — líquido da camada × líquido dos lançamentos por
+    empresa/mês; a migration aborta se algum der ≠ 0.
+- Regras (uma implementação): `_shared/management/breakdown.ts` — gasto = saída − entrada,
+  cobertura, período anterior (anda em meses quando o período é de meses fechados), média
+  12m, panorama grupo → item, por área, ranking de fornecedores, assinaturas (recorrente =
+  ≥ 2 meses seguidos na janela de 12m; ativa; nova; subiu > 10%; duplicada = mais de uma
+  empresa no período; USD). Reexportado em `src/features/spending/compute.ts`.
+- Tela `/gastos` (menu "Central de Gastos"): faixa com gasto, anterior, média 12m e %
+  classificado; abas Panorama, Por área, Tecnologia, Fornecedores, Cartões, Conferência
+  (`?secao=`), regime em `?regime=`, período do `PeriodPicker`, escopo do seletor (hooks
+  com `enabled: companyIds === null || companyIds.length > 0`). Tecnologia, Cartões e
+  Conferência só consultam quando a aba abre.
+- MCP: `management_breakdown` (`por`: grupo | item | area | fornecedor; `codigos`), logo
+  depois de `expense_breakdown`. `cost_center_analysis` passou a se descrever como "por
+  área".
+
 ## 4. Invariantes (não quebre)
 
 1. **O contábil não muda.** DRE, caixa, apuração, conciliação leem `transactions` como
@@ -113,7 +144,7 @@ bun run build
 ```
 
 Testes de banco desta frente: `areas_e_balanco_gerencial.sql` (26),
-`faturas_de_cartao.sql` (28), `regras_de_classificacao.sql` (23). O seed local **não tem a
+`faturas_de_cartao.sql` (28), `regras_de_classificacao.sql` (23), `central_de_gastos.sql` (25). O seed local **não tem a
 estrutura de produção** (OPEX, Diretoria + TI…): os testes montam uma organização de
 teste com ela.
 
@@ -131,7 +162,18 @@ references, trigger … from authenticated`).
 
 ## 6. O que falta
 
-### 6.1 Fase 5 — a tela `/gastos` (próximo passo)
+### 6.1 Fase 5 — a tela `/gastos` — **feita** (ver §3)
+
+O que ficou de fora dela:
+
+- **Pagadora × beneficiária**: espera a UI de `beneficiary_company_id` (6.4).
+- **Gaveta de lançamentos** por célula (como no Balanço): a Central ainda não abre os
+  lançamentos de um item/fornecedor; quem precisa vai a `/faturas` ou ao Balanço.
+- Parcelas a vencer usam as linhas parceladas; `summary.futureObligationsCents` da fatura
+  (o que o banco imprime) não é exibido nem conferido contra elas.
+- Sem verificação visual (preferência do dono): validado por preflight, build e testes.
+
+Desenho original, para referência:
 
 Fonte: `v_management_lines` (já tem item, grupo, natureza, área, origem `ledger|card`).
 Criar RPC `management_breakdown_multi(p_from, p_to, p_basis, p_company_ids)` no padrão
@@ -157,11 +199,9 @@ Seções (plano §8):
 - Seletor empresa/consolidado/grupo: hook novo com
   `enabled: companyIds === null || companyIds.length > 0`.
 
-### 6.2 MCP
+### 6.2 MCP — **feito** (ver §3)
 
-Tool `management_breakdown` (somente leitura) sobre a mesma RPC; incluir na ordem fixada
-em `supabase/functions/_shared/mcp/registry.test.ts`. Rever as descrições das tools que
-ainda dizem "centro de custo" (hoje significa área).
+Falta só publicar (o Worker/Edge Function do MCP lê `_shared/` no deploy do dono).
 
 ### 6.3 Go-live (com o dono do repo)
 
@@ -188,4 +228,5 @@ ainda dizem "centro de custo" (hoje significa área).
 1. Ler este documento, `CLAUDE.md` (seção "Plano gerencial, áreas & Central de Gastos")
    e `src/features/balance/compute.ts`.
 2. `git switch feat/plano-gerencial && bun run db:reset` e rodar os testes de banco.
-3. Fazer a Fase 5 (6.1) e o MCP (6.2) na mesma branch; abrir o PR no fim.
+3. Go-live (6.3) com o dono: push, PR, conferência com a contabilidade, `db:push`.
+4. Depois: pendências de 6.1 e 6.4.

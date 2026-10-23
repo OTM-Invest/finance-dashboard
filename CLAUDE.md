@@ -290,7 +290,14 @@ primeiro. Histórico das decisões:
 Feitas: **Fase 0** (plano gerencial + mapa conta → item, `/settings/management-plan`) e
 **Fase 1** (centro de custo vira área; Balanço por filtro sobre o plano gerencial) e
 **Fase 2** (fatura de cartão aberta em compras, `/faturas`) e **Fase 3** (regras de
-classificação e sugestão por IA).
+classificação e sugestão por IA) e **Fase 5** (Central `/gastos` + tool de MCP
+`management_breakdown`).
+
+⚠️ **A Central conta com `_shared/management/breakdown.ts`** (gasto = saída − entrada,
+cobertura, fornecedor, assinatura); a tela reexporta, o MCP importa. A RPC
+`management_breakdown_multi` devolve agregado SEM mês — por fornecedor o consolidado passa
+de mil linhas e o PostgREST corta em silêncio: a tela pagina com ordem total, o MCP recorta
+(`p_by_vendor=false`/`p_codes`) e avisa no teto.
 
 ⚠️ **Centro de custo É ÁREA.** `cost_centers` responde só "para qual time é o gasto"
 (Assessores, Apoio, Diretoria, Tecnologia…). "O que o gasto é" (receita, imposto, capex,
