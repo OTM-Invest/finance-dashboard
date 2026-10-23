@@ -4,6 +4,7 @@ import {
   BarChart3,
   Building2,
   CalendarRange,
+  CreditCard,
   FileBarChart,
   FileDown,
   FileText,
@@ -45,6 +46,7 @@ const navItems: NavItem[] = [
   { to: "/cashflow", label: "Fluxo de Caixa", icon: TrendingUp, module: "financials" },
   { to: "/contas", label: "Contas", icon: Wallet, module: "financials" },
   { to: "/reconciliation", label: "Conciliação", icon: GitCompare, module: "financials" },
+  { to: "/faturas", label: "Faturas de cartão", icon: CreditCard, module: "financials" },
   { to: "/forecast", label: "Forecast 90d", icon: CalendarRange, module: "financials" },
   // `end` para o item não ficar ativo junto de /reports/builder.
   { to: "/reports", label: "Relatórios", icon: BarChart3, end: true, module: "financials" },

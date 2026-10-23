@@ -491,6 +491,32 @@ entrava em linha nenhuma).
 2. Conferir a simulação acima com a contabilidade.
 3. `bun run db:push` — a migration falha sozinha se alguma conferência não fechar.
 
+## 11.3 Estado da Fase 2 (2026-10-23)
+
+Feito, na mesma branch, **ainda não aplicado no remoto**:
+
+- Leitor da fatura C6 em `supabase/functions/_shared/cards/` (centavos inteiros):
+  reconstrução de linhas a partir do pdf.js, parser, validador. Testado com as três
+  faturas de set/2026 — a da Jimmy saiu do PDF pelo pdf.js e fechou em todas as
+  conferências; as da OTM e da RCO (PDF só imagem) foram transcritas para cobrir cartão
+  adicional, "Inclusao de Pagamento", parcela do ano anterior e quatro assinaturas iguais
+  no mesmo dia.
+- Migration `…_faturas_de_cartao`: `payment_cards`, `card_statements`,
+  `card_statement_lines` (RLS da empresa + trio OAuth + auditoria), `save_card_statement`
+  (o banco refaz total, subtotal por cartão e lançamento e decide `reconciled` ou
+  `needs_review`) e `v_management_lines` trocando a fatura conferida pelas compras.
+  Compra sem classificação herda "Fatura de cartão": detalhar não muda total.
+- Tela `/faturas`: importar (lançamento + PDF, com senha se houver; a leitura é no
+  navegador e o PDF vira anexo do lançamento), conferência, distribuição por grupo e
+  classificação manual de cada compra (item gerencial + área).
+- Teste de banco `supabase/tests/faturas_de_cartao.sql`: 28 verificações, inclusive que ninguém marca fatura como conferida nem mexe em compra por fora das RPCs, e que editar o lançamento depois devolve a fatura para conferência.
+
+Limites conhecidos desta fase:
+
+- **PDF só imagem não é lido** (OTM e RCO no formato atual). A tela pede o PDF original
+  do C6; a leitura por visão é a Fase 4.
+- **Classificação é manual.** Regras por fornecedor e sugestão por IA são a Fase 3.
+
 ## 12. Decisões (tomadas em 2026-10-23)
 
 Todas seguem a recomendação do plano.

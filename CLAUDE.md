@@ -286,7 +286,8 @@ aritmética ou o calendário mudarem.
 Em construção por fases (plano em
 [`docs/features/central-de-gastos-plan.md`](docs/features/central-de-gastos-plan.md)).
 Feitas: **Fase 0** (plano gerencial + mapa conta → item, `/settings/management-plan`) e
-**Fase 1** (centro de custo vira área; Balanço por filtro sobre o plano gerencial).
+**Fase 1** (centro de custo vira área; Balanço por filtro sobre o plano gerencial) e
+**Fase 2** (fatura de cartão aberta em compras, `/faturas`).
 
 ⚠️ **Centro de custo É ÁREA.** `cost_centers` responde só "para qual time é o gasto"
 (Assessores, Apoio, Diretoria, Tecnologia…). "O que o gasto é" (receita, imposto, capex,
@@ -312,6 +313,13 @@ em SQL de produção.
 ⚠️ **Uuid de área vive dentro de jsonb** — `balance_report_models.lines[].clauses[].areaIds`.
 `merge_cost_centers` remapeia; qualquer outra operação que mova ou apague área precisa
 fazer o mesmo, senão a linha soma zero em silêncio.
+
+⚠️ **Fatura de cartão detalhada não é lançamento.** As compras vivem em
+`card_statement_lines`, penduradas no lançamento da fatura (`card_statements.transaction_id`).
+Só fatura `reconciled` — linhas fecham com o total, os subtotais por cartão e o valor do
+lançamento, conferidos pelo BANCO em `save_card_statement` — troca o lançamento pelas
+compras em `v_management_lines`. Valor de linha não se edita (trigger); para corrigir,
+apaga e reimporta. Leitor e validador têm uma implementação: `_shared/cards/`.
 
 ## Escopo de empresa & grupos de agregação
 

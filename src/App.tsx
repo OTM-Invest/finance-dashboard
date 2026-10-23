@@ -43,6 +43,8 @@ const RecurringPage = lazy(() => import("@/routes/recurring"));
 const SettingsBanksPage = lazy(() => import("@/routes/settings.banks"));
 const SettingsCostCentersPage = lazy(() => import("@/routes/settings.cost-centers"));
 const SettingsManagementPlanPage = lazy(() => import("@/routes/settings.management-plan"));
+const CardStatementsPage = lazy(() => import("@/routes/card-statements"));
+const CardStatementDetailPage = lazy(() => import("@/routes/card-statements.detail"));
 const SettingsCounterpartiesPage = lazy(() => import("@/routes/settings.counterparties"));
 const SettingsPayrollPage = lazy(() => import("@/routes/settings.payroll"));
 const CompaniesPage = lazy(() => import("@/routes/companies"));
@@ -118,6 +120,8 @@ export default function App() {
                     <Route path="recurring" element={<RecurringPage />} />
                     <Route path="audit" element={<AuditPage />} />
                     <Route path="import" element={<ImportPage />} />
+                    <Route path="faturas" element={<CardStatementsPage />} />
+                    <Route path="faturas/:id" element={<CardStatementDetailPage />} />
                     <Route path="integracoes" element={<IntegracoesPage />} />
                     <Route path="integracoes/:slug" element={<IntegracaoDetailPage />} />
                     <Route path="webhooks" element={<WebhooksPage />} />

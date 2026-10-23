@@ -633,14 +633,16 @@ begin
              when l ->> 'kind' = 'formula' then
                jsonb_set(l, '{terms}', (l -> 'terms') || coalesce((
                  -- Uma vez por linha nova, mesmo que a fórmula some várias linhas de área.
-                 select jsonb_agg(jsonb_build_object('lineId', x.to_id, 'sign', x.sign))
+                 select jsonb_agg(jsonb_build_object('lineId', x.to_id, 'sign', x.sign) order by x.pord)
                  from (
-                   select distinct on (p ->> 'to') p ->> 'to' as to_id, t -> 'sign' as sign
+                   select distinct on (p ->> 'to') p ->> 'to' as to_id, t -> 'sign' as sign, pord
                    from jsonb_array_elements(l -> 'terms') t
-                   join jsonb_array_elements(v_patches) p on p ->> 'from' = t ->> 'lineId'
+                   join jsonb_array_elements(v_patches) with ordinality as pp(p, pord)
+                     on p ->> 'from' = t ->> 'lineId'
                    where not exists (
                      select 1 from jsonb_array_elements(l -> 'terms') t2
                      where t2 ->> 'lineId' = p ->> 'to')
+                   order by p ->> 'to', pord
                  ) x
                ), '[]'::jsonb))
              else l
