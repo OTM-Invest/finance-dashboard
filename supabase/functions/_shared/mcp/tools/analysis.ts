@@ -82,9 +82,10 @@ const AVISO_TRANSFERENCIA =
 
 export const costCenterAnalysis: McpTool = {
   name: "cost_center_analysis",
-  title: "Análise por centro de custo",
+  title: "Análise por área (centro de custo)",
   description:
-    "Receita, despesa, resultado e margem por CENTRO DE CUSTO de uma empresa num período, com série " +
+    "Receita, despesa, resultado e margem por ÁREA (o time: Assessores, Tecnologia, Diretoria… — " +
+    "tecnicamente centro de custo) de uma empresa num período, com série " +
     "mensal opcional. Use para 'qual área dá prejuízo', 'qual centro de custo cresceu mais', " +
     "'como está o balanço gerencial'. " +
     "Lançamento sem centro de custo aparece agrupado como 'Sem centro de custo' e entra nos totais. " +

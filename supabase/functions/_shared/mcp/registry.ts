@@ -23,6 +23,7 @@ import { getDre } from "./tools/dre.ts";
 import { expenseBreakdown } from "./tools/expenses.ts";
 import { forecastCashflow } from "./tools/forecast.ts";
 import { getKpis } from "./tools/kpis.ts";
+import { managementBreakdown } from "./tools/management.ts";
 import { nfseStatus } from "./tools/nfse.ts";
 import { payrollSummary } from "./tools/payroll.ts";
 import { getReceivablesSchedule, getSales } from "./tools/sales.ts";
@@ -44,6 +45,7 @@ export const TOOLS: McpTool[] = [
   comparePeriods,
   getKpis,
   expenseBreakdown,
+  managementBreakdown,
 
   // Caixa e bancos.
   getCashflow,

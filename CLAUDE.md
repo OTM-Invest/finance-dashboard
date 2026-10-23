@@ -413,7 +413,7 @@ ChatGPT, Claude Code) em linguagem natural, autenticado pelo login de cada pesso
 o OAuth 2.1 Server do Supabase. Núcleo em `supabase/functions/_shared/mcp/`,
 transportes em `scripts/mcp-stdio.ts` (local) e `workers/mcp/` (Cloudflare Worker).
 
-**22 tools**, do contexto (`list_companies`, `list_dimensions`) ao panorama composto
+**23 tools**, do contexto (`list_companies`, `list_dimensions`) ao panorama composto
 (`monthly_briefing`), passando por resultado, caixa e bancos, títulos, análise por
 dimensão, vendas, fiscal, notas e folha — com `sql_query` como última saída. O catálogo
 e a ORDEM dele são fixados por teste em `registry.test.ts`: tool nova é decisão

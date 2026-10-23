@@ -21,6 +21,7 @@ describe("listTools", () => {
       "compare_periods",
       "get_kpis",
       "expense_breakdown",
+      "management_breakdown",
       "get_cashflow",
       "get_bank_balances",
       "get_account_ledger",

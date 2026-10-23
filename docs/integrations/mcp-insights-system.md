@@ -12,7 +12,7 @@
 > - [`pagarme-system.md`](pagarme-system.md) e [`nfse-system.md`](nfse-system.md) — os
 >   dois maiores produtores do dado que o MCP lê.
 >
-> **Última atualização:** 31/08/2026. **Estado:** no ar, em uso, com 22 tools.
+> **Última atualização:** 31/08/2026. **Estado:** no ar, em uso, com 23 tools (`management_breakdown` entrou com a Central de Gastos, 23/10/2026).
 
 ---
 
@@ -77,7 +77,7 @@ cita é o mesmo número da tela**.
   └──────────────────────────────────────────────────────┘
         │
         │  supabase/functions/_shared/mcp/  (núcleo, agnóstico de transporte)
-        │  22 tools · adapter · proveniência · jaula de SQL
+        │  23 tools · adapter · proveniência · jaula de SQL
         ▼
      PostgREST com o **JWT do usuário** (anon key). Nunca service role.
         │
@@ -208,36 +208,37 @@ nova não vaza por acidente) e limite acima de 2000.
 
 ### As tools
 
-**22 tools.** A ordem da tabela é a ordem do catálogo em `registry.ts`, e ela é
+**23 tools.** A ordem da tabela é a ordem do catálogo em `registry.ts`, e ela é
 funcional: a maioria dos clientes MCP apresenta o catálogo ao modelo nessa sequência, que
 funciona como roteiro — descoberta primeiro (sem `company_id` nada mais roda), depois
 resultado, caixa, títulos, análise, domínio, e o SQL livre por último, porque é a saída de
 emergência e não o primeiro recurso. `registry.test.ts` fixa a lista **e** a ordem.
 
-| Tool                       | Responde                                                              | Fonte                                                 |
-| -------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------- |
-| `list_companies`           | quais empresas você enxerga, com os ids                               | tabela `companies`                                    |
-| `list_dimensions`          | plano de contas, centros de custo, contrapartes, bancos, contas pgm   | tabelas de cadastro + `pagarme_gateway_accounts`      |
-| `monthly_briefing`         | panorama de um mês inteiro numa chamada                               | composta (DRE + caixa + saldo + aging)                |
-| `get_dre`                  | DRE por empresa ou consolidada, nos dois regimes                      | RPCs `dre_by_company` / `dre_consolidated`            |
-| `compare_periods`          | dois períodos lado a lado, com variação por linha                     | `dre_by_company`, duas chamadas                       |
-| `get_kpis`                 | margens, resultado e geração de caixa mês a mês, num ano              | `kpi_dashboard` / `kpi_dashboard_consolidated`        |
-| `expense_breakdown`        | maiores contas de despesa, com "Outros"                               | RPC `expense_breakdown`                               |
-| `get_cashflow`             | entradas, saídas e líquido realizados, por dia ou mês                 | RPC `cashflow_daily`                                  |
-| `get_bank_balances`        | saldo por conta bancária numa data                                    | RPC `bank_balances_multi`                             |
-| `get_account_ledger`       | extrato de uma conta com saldo corrente                               | `bank_account_period` + `bank_account_ledger`         |
-| `forecast_cashflow`        | previsão de entradas, saídas e saldo futuro                           | `forecast_cashflow_daily` + `forecast_pagarme_inflow` |
-| `get_aging`                | títulos em aberto por faixa de vencimento                             | view `v_bills_aging`                                  |
-| `list_open_bills`          | a lista dos títulos em aberto, com filtros                            | view `v_bills`                                        |
-| `cost_center_analysis`     | receita, despesa e margem por centro de custo                         | `cost_center_analysis` + `cost_center_monthly_series` |
-| `counterparty_analysis`    | maiores clientes/fornecedores e concentração                          | RPC `counterparty_analysis`                           |
-| `get_sales`                | vendas do pagar.me em 5 visões (resumo/série/quebra/clientes/recorr.) | RPCs `sales_*`                                        |
-| `get_receivables_schedule` | curva de recebíveis por mês de liquidação                             | RPC `receivables_schedule`                            |
-| `list_tax_obligations`     | impostos e obrigações, com situação                                   | tabela `tax_obligations`                              |
-| `nfse_status`              | estado da esteira de NFS-e e as falhas                                | tabela `invoice_jobs`                                 |
-| `payroll_summary`          | custo da folha por mês de referência (agregado)                       | tabela `payroll_runs`                                 |
-| `search_transactions`      | lançamentos, agregados por conta ou detalhados                        | tabela `transactions`                                 |
-| `sql_query`                | SELECT livre nas views de `mcp_api`                                   | `mcp_run_query`                                       |
+| Tool                       | Responde                                                                    | Fonte                                                                |
+| -------------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `list_companies`           | quais empresas você enxerga, com os ids                                     | tabela `companies`                                                   |
+| `list_dimensions`          | plano de contas, centros de custo, contrapartes, bancos, contas pgm         | tabelas de cadastro + `pagarme_gateway_accounts`                     |
+| `monthly_briefing`         | panorama de um mês inteiro numa chamada                                     | composta (DRE + caixa + saldo + aging)                               |
+| `get_dre`                  | DRE por empresa ou consolidada, nos dois regimes                            | RPCs `dre_by_company` / `dre_consolidated`                           |
+| `compare_periods`          | dois períodos lado a lado, com variação por linha                           | `dre_by_company`, duas chamadas                                      |
+| `get_kpis`                 | margens, resultado e geração de caixa mês a mês, num ano                    | `kpi_dashboard` / `kpi_dashboard_consolidated`                       |
+| `expense_breakdown`        | maiores contas de despesa, com "Outros"                                     | RPC `expense_breakdown`                                              |
+| `management_breakdown`     | gasto pelo plano gerencial — grupo, item, área ou fornecedor, com cobertura | RPC `management_breakdown_multi` + `_shared/management/breakdown.ts` |
+| `get_cashflow`             | entradas, saídas e líquido realizados, por dia ou mês                       | RPC `cashflow_daily`                                                 |
+| `get_bank_balances`        | saldo por conta bancária numa data                                          | RPC `bank_balances_multi`                                            |
+| `get_account_ledger`       | extrato de uma conta com saldo corrente                                     | `bank_account_period` + `bank_account_ledger`                        |
+| `forecast_cashflow`        | previsão de entradas, saídas e saldo futuro                                 | `forecast_cashflow_daily` + `forecast_pagarme_inflow`                |
+| `get_aging`                | títulos em aberto por faixa de vencimento                                   | view `v_bills_aging`                                                 |
+| `list_open_bills`          | a lista dos títulos em aberto, com filtros                                  | view `v_bills`                                                       |
+| `cost_center_analysis`     | receita, despesa e margem por centro de custo                               | `cost_center_analysis` + `cost_center_monthly_series`                |
+| `counterparty_analysis`    | maiores clientes/fornecedores e concentração                                | RPC `counterparty_analysis`                                          |
+| `get_sales`                | vendas do pagar.me em 5 visões (resumo/série/quebra/clientes/recorr.)       | RPCs `sales_*`                                                       |
+| `get_receivables_schedule` | curva de recebíveis por mês de liquidação                                   | RPC `receivables_schedule`                                           |
+| `list_tax_obligations`     | impostos e obrigações, com situação                                         | tabela `tax_obligations`                                             |
+| `nfse_status`              | estado da esteira de NFS-e e as falhas                                      | tabela `invoice_jobs`                                                |
+| `payroll_summary`          | custo da folha por mês de referência (agregado)                             | tabela `payroll_runs`                                                |
+| `search_transactions`      | lançamentos, agregados por conta ou detalhados                              | tabela `transactions`                                                |
+| `sql_query`                | SELECT livre nas views de `mcp_api`                                         | `mcp_run_query`                                                      |
 
 Três regras valem para todas:
 
