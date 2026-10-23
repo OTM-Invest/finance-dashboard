@@ -194,7 +194,7 @@ export function TransactionForm({
         {/* Cost center */}
         <div className="space-y-1.5">
           <Label htmlFor="costCenterId">
-            Centro de custo <span className="text-text-subtle">(opcional)</span>
+            Área <span className="text-text-subtle">(opcional)</span>
           </Label>
           <Controller
             name="costCenterId"

@@ -26,7 +26,7 @@ const TAB_VALUES = ["cost-center", "balance", "counterparty", "dre-comparison"] 
 type Tab = (typeof TAB_VALUES)[number];
 
 const TABS: { value: Tab; label: string; icon: LucideIcon }[] = [
-  { value: "cost-center", label: "Centros de Custo", icon: Building2 },
+  { value: "cost-center", label: "Áreas", icon: Building2 },
   { value: "balance", label: "Balanço", icon: Table2 },
   { value: "counterparty", label: "Contrapartes", icon: Users },
   { value: "dre-comparison", label: "DRE Comparativo", icon: BarChart3 },
@@ -237,8 +237,8 @@ function Header({
         )}
       </div>
       <p className="mt-1 text-sm text-text-muted">
-        Balanço gerencial mês a mês, análises por centro de custo e contraparte e comparativos de
-        DRE (MoM/YoY) — todos exportáveis para CSV.
+        Balanço gerencial mês a mês, análises por área e contraparte e comparativos de DRE (MoM/YoY)
+        — todos exportáveis para CSV.
       </p>
     </div>
   );

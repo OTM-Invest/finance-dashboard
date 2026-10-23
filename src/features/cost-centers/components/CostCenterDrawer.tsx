@@ -83,7 +83,7 @@ export function CostCenterDrawer({ open, onOpenChange, costCenter, organizationI
         { id: costCenter.id, payload },
         {
           onSuccess: () => {
-            toast.success("Centro de custo atualizado");
+            toast.success("Área atualizada");
             onOpenChange(false);
           },
           onError: (err) => toast.error("Erro ao salvar", { description: err.message }),
@@ -92,7 +92,7 @@ export function CostCenterDrawer({ open, onOpenChange, costCenter, organizationI
     } else {
       create.mutate(payload, {
         onSuccess: () => {
-          toast.success("Centro de custo criado");
+          toast.success("Área criada");
           onOpenChange(false);
         },
         onError: (err) => toast.error("Erro ao criar", { description: err.message }),
@@ -104,9 +104,9 @@ export function CostCenterDrawer({ open, onOpenChange, costCenter, organizationI
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent size="sm" className="flex flex-col p-0">
         <SheetHeader>
-          <SheetTitle>{isEditing ? "Editar centro de custo" : "Novo centro de custo"}</SheetTitle>
+          <SheetTitle>{isEditing ? "Editar área" : "Nova área"}</SheetTitle>
           <SheetDescription>
-            Centros de custo agrupam lançamentos por departamento, filial ou projeto.
+            A área diz para qual time é o gasto. O que o gasto é sai da conta, pelo plano gerencial.
           </SheetDescription>
         </SheetHeader>
         <form

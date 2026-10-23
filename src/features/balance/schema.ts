@@ -6,9 +6,14 @@
  * garante que é um array (ver a migration do balanço).
  *
  * Três tipos de linha:
- *   `cost_centers` — soma de uma medida de N centros de custo (o "item");
- *   `formula`      — combinação com sinal de outras linhas (o "subitem calculado");
- *   `ratio`        — divisão de duas linhas, exibida em %.
+ *   `filter`  — soma de uma medida sobre a camada gerencial: os lançamentos cujo item do
+ *               plano gerencial, área e natureza casam com alguma das cláusulas (o "item");
+ *   `formula` — combinação com sinal de outras linhas (o "subitem calculado");
+ *   `ratio`   — divisão de duas linhas, exibida em %.
+ *
+ * Até a migration …_areas_e_balanco_gerencial a linha somava centros de custo
+ * (`cost_centers`). O centro virou área e o "o que é" passou a sair da conta; os modelos
+ * gravados foram reescritos para `filter` na própria migration.
  */
 import { z } from "zod";
 
@@ -36,11 +41,31 @@ const lineBase = {
   emphasis: z.boolean(),
 };
 
-export const costCentersLineSchema = z.object({
+export const BALANCE_NATURES = ["opex", "capex"] as const;
+export type BalanceNature = (typeof BALANCE_NATURES)[number];
+
+/**
+ * Uma cláusula casa um lançamento quando as três condições valem juntas. Lançamento sem
+ * item gerencial (transferência, conta patrimonial) nunca casa — vai para o "Não
+ * classificado", onde soma zero.
+ */
+export const balanceClauseSchema = z.object({
+  /** Grupos ou itens do plano gerencial. Vazio = qualquer item. */
+  managementAccountIds: z.array(z.string().uuid()),
+  /** Áreas. `null` = qualquer área, inclusive nenhuma. */
+  areaIds: z.array(z.string().uuid()).nullable(),
+  /** Com `areaIds` preenchido, casa também o lançamento sem área. */
+  includeNoArea: z.boolean(),
+  /** `null` = qualquer natureza (e o que não tem natureza: receita, tributo…). */
+  nature: z.enum(BALANCE_NATURES).nullable(),
+});
+
+export const filterLineSchema = z.object({
   ...lineBase,
-  kind: z.literal("cost_centers"),
+  kind: z.literal("filter"),
   measure: z.enum(BALANCE_MEASURES),
-  costCenterIds: z.array(z.string().uuid()),
+  /** A linha soma o lançamento que casa com QUALQUER cláusula — uma vez só. */
+  clauses: z.array(balanceClauseSchema),
 });
 
 export const formulaTermSchema = z.object({
@@ -62,21 +87,22 @@ export const ratioLineSchema = z.object({
 });
 
 export const balanceLineSchema = z.discriminatedUnion("kind", [
-  costCentersLineSchema,
+  filterLineSchema,
   formulaLineSchema,
   ratioLineSchema,
 ]);
 
 export const balanceLinesSchema = z.array(balanceLineSchema);
 
-export type CostCentersLine = z.infer<typeof costCentersLineSchema>;
+export type BalanceClause = z.infer<typeof balanceClauseSchema>;
+export type FilterLine = z.infer<typeof filterLineSchema>;
 export type FormulaLine = z.infer<typeof formulaLineSchema>;
 export type RatioLine = z.infer<typeof ratioLineSchema>;
 export type BalanceLine = z.infer<typeof balanceLineSchema>;
 export type FormulaTerm = z.infer<typeof formulaTermSchema>;
 
 export const LINE_KIND_LABELS: Record<BalanceLine["kind"], string> = {
-  cost_centers: "Centros de custo",
+  filter: "Plano gerencial",
   formula: "Fórmula",
   ratio: "Percentual",
 };
@@ -99,22 +125,27 @@ export function newLineId(): string {
   return crypto.randomUUID();
 }
 
+/** Cláusula vazia: qualquer item, qualquer área, qualquer natureza. */
+export function emptyClause(): BalanceClause {
+  return { managementAccountIds: [], areaIds: null, includeNoArea: false, nature: null };
+}
+
 /**
- * Modelo inicial: uma linha por centro de custo ativo, na ordem em que vêm.
+ * Modelo inicial: uma linha por grupo do plano gerencial, na ordem do plano.
  *
- * Deliberadamente não tenta adivinhar Ebitda/Lucro a partir do nome do centro —
- * a composição dessas linhas é decisão contábil de quem monta o relatório, e
- * errar em silêncio no palpite é pior que deixar o usuário montar.
+ * Deliberadamente não tenta montar Ebitda/Lucro — a composição dessas linhas é decisão
+ * contábil de quem monta o relatório, e errar em silêncio no palpite é pior que deixar o
+ * usuário montar.
  */
-export function linesFromCostCenters(
-  costCenters: readonly { id: string; name: string }[],
+export function linesFromManagementGroups(
+  groups: readonly { id: string; name: string }[],
 ): BalanceLine[] {
-  return costCenters.map((cc) => ({
+  return groups.map((group) => ({
     id: newLineId(),
-    label: cc.name,
-    kind: "cost_centers" as const,
+    label: group.name,
+    kind: "filter" as const,
     measure: "net" as const,
-    costCenterIds: [cc.id],
+    clauses: [{ ...emptyClause(), managementAccountIds: [group.id] }],
     emphasis: false,
   }));
 }

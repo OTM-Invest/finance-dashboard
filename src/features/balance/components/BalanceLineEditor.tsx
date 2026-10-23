@@ -32,20 +32,18 @@ import {
 import {
   BALANCE_MEASURES,
   balanceLineSchema,
+  emptyClause,
   LINE_KIND_LABELS,
   MEASURE_HINTS,
   MEASURE_LABELS,
   newLineId,
+  type BalanceClause,
   type BalanceLine,
   type BalanceMeasure,
   type FormulaTerm,
 } from "../schema";
-
-/** A central de custos é global, então uma opção é um centro e ponto. */
-interface CostCenterOption {
-  id: string;
-  name: string;
-}
+import { FilterClausesEditor } from "./FilterClausesEditor";
+import type { BalanceOptions } from "./options";
 
 interface Props {
   open: boolean;
@@ -54,7 +52,7 @@ interface Props {
   line: BalanceLine | null;
   /** Demais linhas do modelo — as que uma fórmula ou percentual pode referenciar. */
   otherLines: BalanceLine[];
-  costCenters: CostCenterOption[];
+  options: BalanceOptions;
   onSubmit: (line: BalanceLine) => void;
   onDelete?: (lineId: string) => void;
 }
@@ -65,7 +63,7 @@ interface Draft {
   emphasis: boolean;
   kind: BalanceLine["kind"];
   measure: BalanceMeasure;
-  costCenterIds: string[];
+  clauses: BalanceClause[];
   terms: FormulaTerm[];
   numeratorLineId: string;
   denominatorLineId: string;
@@ -77,18 +75,18 @@ function toDraft(line: BalanceLine | null, fallbackRefId: string): Draft {
     label: line?.label ?? "",
     emphasis: line?.emphasis ?? false,
     measure: "net" as BalanceMeasure,
-    costCenterIds: [] as string[],
+    clauses: [emptyClause()],
     terms: [] as FormulaTerm[],
     numeratorLineId: fallbackRefId,
     denominatorLineId: fallbackRefId,
   };
-  if (!line) return { ...base, kind: "cost_centers" };
-  if (line.kind === "cost_centers") {
+  if (!line) return { ...base, kind: "filter" };
+  if (line.kind === "filter") {
     return {
       ...base,
-      kind: "cost_centers",
+      kind: "filter",
       measure: line.measure,
-      costCenterIds: [...line.costCenterIds],
+      clauses: line.clauses.map((c) => ({ ...c })),
     };
   }
   if (line.kind === "formula") {
@@ -104,13 +102,8 @@ function toDraft(line: BalanceLine | null, fallbackRefId: string): Draft {
 
 function fromDraft(draft: Draft): BalanceLine {
   const base = { id: draft.id, label: draft.label.trim(), emphasis: draft.emphasis };
-  if (draft.kind === "cost_centers") {
-    return {
-      ...base,
-      kind: "cost_centers",
-      measure: draft.measure,
-      costCenterIds: draft.costCenterIds,
-    };
+  if (draft.kind === "filter") {
+    return { ...base, kind: "filter", measure: draft.measure, clauses: draft.clauses };
   }
   if (draft.kind === "formula") {
     return { ...base, kind: "formula", terms: draft.terms };
@@ -128,7 +121,7 @@ export function BalanceLineEditor({
   onOpenChange,
   line,
   otherLines,
-  costCenters,
+  options,
   onSubmit,
   onDelete,
 }: Props) {
@@ -157,8 +150,8 @@ export function BalanceLineEditor({
       setError(parsed.error.issues[0]?.message ?? "Confira os campos da linha.");
       return;
     }
-    if (parsed.data.kind === "cost_centers" && parsed.data.costCenterIds.length === 0) {
-      setError("Escolha ao menos um centro de custo.");
+    if (parsed.data.kind === "filter" && parsed.data.clauses.length === 0) {
+      setError("Uma linha precisa de ao menos uma condição.");
       return;
     }
     if (parsed.data.kind === "formula" && parsed.data.terms.length === 0) {
@@ -175,7 +168,8 @@ export function BalanceLineEditor({
         <SheetHeader>
           <SheetTitle>{line ? "Editar linha" : "Nova linha"}</SheetTitle>
           <SheetDescription>
-            Uma linha soma centros de custo, combina outras linhas ou divide duas delas.
+            Uma linha soma itens do plano gerencial (por área e natureza), combina outras linhas ou
+            divide duas delas.
           </SheetDescription>
         </SheetHeader>
 
@@ -205,7 +199,7 @@ export function BalanceLineEditor({
                     <SelectItem
                       key={value}
                       value={value}
-                      disabled={value !== "cost_centers" && !hasOtherLines}
+                      disabled={value !== "filter" && !hasOtherLines}
                     >
                       {label}
                     </SelectItem>
@@ -215,12 +209,12 @@ export function BalanceLineEditor({
             </Select>
             {needsOtherLines && !hasOtherLines && (
               <p className="text-2xs text-text-muted">
-                Crie ao menos uma linha de centros de custo antes de montar cálculos.
+                Crie ao menos uma linha do plano gerencial antes de montar cálculos.
               </p>
             )}
           </div>
 
-          {draft.kind === "cost_centers" && (
+          {draft.kind === "filter" && (
             <>
               <div className="space-y-1.5">
                 <Label htmlFor="line-measure">O que somar</Label>
@@ -242,38 +236,11 @@ export function BalanceLineEditor({
                 <p className="text-2xs text-text-muted">{MEASURE_HINTS[draft.measure]}</p>
               </div>
 
-              <fieldset className="space-y-2">
-                <legend className="text-sm font-medium">Centros de custo</legend>
-                {costCenters.length === 0 ? (
-                  <p className="text-2xs text-text-muted">
-                    Nenhum centro de custo ativo no escopo.
-                  </p>
-                ) : (
-                  <div className="max-h-64 space-y-1 overflow-y-auto rounded-[var(--radius-md)] border border-border p-2">
-                    {costCenters.map((cc) => {
-                      const checked = draft.costCenterIds.includes(cc.id);
-                      return (
-                        <label
-                          key={cc.id}
-                          className="flex cursor-pointer items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 text-sm hover:bg-surface-2"
-                        >
-                          <Checkbox
-                            checked={checked}
-                            onCheckedChange={(next) =>
-                              patch({
-                                costCenterIds: next
-                                  ? [...draft.costCenterIds, cc.id]
-                                  : draft.costCenterIds.filter((id) => id !== cc.id),
-                              })
-                            }
-                          />
-                          {cc.name}
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
-              </fieldset>
+              <FilterClausesEditor
+                clauses={draft.clauses}
+                options={options}
+                onChange={(clauses) => patch({ clauses })}
+              />
             </>
           )}
 

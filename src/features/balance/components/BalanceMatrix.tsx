@@ -61,7 +61,7 @@ function formatCell(line: BalanceMatrixLine, value: number | null): string {
 /** Só o que é resultado ganha cor de negativo; item de custo é positivo por natureza. */
 function toneFor(line: BalanceMatrixLine, value: number | null): string | undefined {
   if (value == null || value >= 0) return undefined;
-  if (line.kind === "cost_centers") return undefined;
+  if (line.kind === "filter") return undefined;
   return "text-expense";
 }
 

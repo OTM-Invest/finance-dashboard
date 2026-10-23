@@ -1,33 +1,60 @@
 /**
  * Cálculo da matriz do balanço gerencial — funções puras, sem banco.
  *
- * Entra a série mensal crua (mês × centro de custo) e o modelo de linhas; sai a
- * matriz pronta para a tabela. O cálculo fica aqui, e não no SQL, para as
+ * Entra a série mensal crua (mês × item gerencial × área × natureza) e o modelo de
+ * linhas; sai a matriz pronta para a tabela. O cálculo fica aqui, e não no SQL, para as
  * fórmulas serem testáveis sem subir Postgres.
  */
 import { eachMonthOfInterval, parseISO, startOfMonth } from "date-fns";
 
 import { isoDate } from "@/lib/dates";
 
-import type { BalanceLine, BalanceMeasure } from "./schema";
+import type {
+  BalanceClause,
+  BalanceLine,
+  BalanceMeasure,
+  BalanceNature,
+  FilterLine,
+} from "./schema";
 
-export interface MonthlySeriesRow {
+/** O que identifica um pedaço da série: item, grupo, área e natureza. */
+export interface SeriesKey {
+  managementAccountId: string | null;
+  managementGroupId: string | null;
+  areaId: string | null;
+  nature: BalanceNature | null;
+}
+
+export interface MonthlySeriesRow extends SeriesKey {
   /** Primeiro dia do mês, YYYY-MM-DD. */
   month: string;
-  costCenterId: string | null;
   revenue: number;
   expense: number;
 }
 
 /**
- * Como chegar nos lançamentos por trás de uma linha.
- *
- * Linha calculada (fórmula, percentual) não tem lançamento próprio — ela nasce de
- * outras linhas —, então o drilldown dela é `null`.
+ * Chave mandada ao banco para listar os lançamentos de uma célula: item, área,
+ * natureza e o lado do dinheiro (`null` = os dois). O grupo não vai — ele é função do
+ * item.
  */
-export type BalanceDrilldown =
-  | { kind: "cost_centers"; costCenterIds: string[]; measure: BalanceMeasure }
-  | { kind: "unclassified"; revenueCovered: string[]; expenseCovered: string[] };
+export interface DrilldownKey {
+  m: string | null;
+  a: string | null;
+  n: BalanceNature | null;
+  d: "inflow" | "outflow" | null;
+}
+
+/**
+ * Como chegar nos lançamentos por trás de uma linha: as chaves exatas que ela soma no
+ * período. Linha calculada (fórmula, percentual) não tem lançamento próprio — ela nasce
+ * de outras linhas —, então o drilldown dela é `null`.
+ */
+export interface BalanceDrilldown {
+  kind: "filter" | "unclassified";
+  keys: DrilldownKey[];
+  /** Medida da linha; `null` no "Não classificado", que é por lado. */
+  measure: BalanceMeasure | null;
+}
 
 export interface BalanceMatrixLine {
   id: string;
@@ -81,12 +108,9 @@ export function monthAxis(from: string, to: string): string[] {
 }
 
 interface Bucket {
+  key: SeriesKey;
   revenue: number;
   expense: number;
-}
-
-function emptyBucket(): Bucket {
-  return { revenue: 0, expense: 0 };
 }
 
 function measureOf(bucket: Bucket, measure: BalanceMeasure): number {
@@ -95,16 +119,60 @@ function measureOf(bucket: Bucket, measure: BalanceMeasure): number {
   return bucket.revenue - bucket.expense;
 }
 
-/** Agrupa as linhas da série por centro de custo. `null` = sem centro. */
-function bucketsByCostCenter(rows: readonly MonthlySeriesRow[]): Map<string | null, Bucket> {
-  const map = new Map<string | null, Bucket>();
+function keyString(key: SeriesKey): string {
+  return `${key.managementAccountId ?? "-"}|${key.areaId ?? "-"}|${key.nature ?? "-"}`;
+}
+
+/** Agrupa a série por chave (o mês já foi separado antes). */
+function bucketsByKey(rows: readonly MonthlySeriesRow[]): Map<string, Bucket> {
+  const map = new Map<string, Bucket>();
   for (const row of rows) {
-    const current = map.get(row.costCenterId) ?? emptyBucket();
-    current.revenue += row.revenue;
-    current.expense += row.expense;
-    map.set(row.costCenterId, current);
+    const id = keyString(row);
+    const current = map.get(id);
+    if (current) {
+      current.revenue += row.revenue;
+      current.expense += row.expense;
+    } else {
+      map.set(id, {
+        key: {
+          managementAccountId: row.managementAccountId,
+          managementGroupId: row.managementGroupId,
+          areaId: row.areaId,
+          nature: row.nature,
+        },
+        revenue: row.revenue,
+        expense: row.expense,
+      });
+    }
   }
   return map;
+}
+
+/**
+ * A regra de que lançamento uma cláusula pega — UMA implementação, usada pelo cálculo,
+ * pela cobertura do "Não classificado" e pelas chaves do drilldown.
+ *
+ * Sem item gerencial não casa nunca: transferência e conta patrimonial não são resultado.
+ */
+export function clauseMatches(clause: BalanceClause, key: SeriesKey): boolean {
+  if (key.managementAccountId == null) return false;
+  if (
+    clause.managementAccountIds.length > 0 &&
+    !clause.managementAccountIds.includes(key.managementAccountId) &&
+    (key.managementGroupId == null || !clause.managementAccountIds.includes(key.managementGroupId))
+  ) {
+    return false;
+  }
+  if (clause.areaIds !== null) {
+    const areaOk = key.areaId == null ? clause.includeNoArea : clause.areaIds.includes(key.areaId);
+    if (!areaOk) return false;
+  }
+  return clause.nature === null || clause.nature === key.nature;
+}
+
+/** A linha pega o pedaço se QUALQUER cláusula pegar — e o soma uma vez só. */
+export function lineMatches(line: FilterLine, key: SeriesKey): boolean {
+  return line.clauses.some((clause) => clauseMatches(clause, key));
 }
 
 /**
@@ -159,7 +227,7 @@ function evaluate(
   lines: readonly BalanceLine[],
   order: readonly string[],
   broken: ReadonlySet<string>,
-  buckets: Map<string | null, Bucket>,
+  buckets: Map<string, Bucket>,
 ): Map<string, number | null> {
   const byId = new Map(lines.map((l) => [l.id, l]));
   const values = new Map<string, number | null>();
@@ -171,11 +239,11 @@ function evaluate(
       continue;
     }
 
-    if (line.kind === "cost_centers") {
-      const sum = line.costCenterIds.reduce(
-        (acc, ccId) => acc + measureOf(buckets.get(ccId) ?? emptyBucket(), line.measure),
-        0,
-      );
+    if (line.kind === "filter") {
+      let sum = 0;
+      for (const bucket of buckets.values()) {
+        if (lineMatches(line, bucket.key)) sum += measureOf(bucket, line.measure);
+      }
       values.set(id, round2(sum));
       continue;
     }
@@ -205,38 +273,71 @@ function evaluate(
 }
 
 /**
- * Centros de custo cobertos pelo modelo, por lado.
+ * Se um pedaço da série está coberto pelo modelo, por lado.
  *
- * A cobertura é por medida, não por centro: uma linha com medida `expense` conta
- * só as saídas daquele centro. Se ele tiver uma entrada (um estorno, por exemplo),
- * ela não aparece em lugar nenhum — e é justamente isso que a linha
- * "Não classificado" precisa capturar para o relatório fechar com a empresa.
+ * A cobertura é por medida: uma linha com medida `expense` conta só as saídas daquele
+ * pedaço. Se ele tiver uma entrada (um estorno, por exemplo), ela não aparece em lugar
+ * nenhum — e é justamente isso que a linha "Não classificado" precisa capturar para o
+ * relatório fechar com a empresa.
  */
-function coverage(lines: readonly BalanceLine[]): { revenue: Set<string>; expense: Set<string> } {
-  const revenue = new Set<string>();
-  const expense = new Set<string>();
+function coverageOf(
+  lines: readonly BalanceLine[],
+  key: SeriesKey,
+): { revenue: boolean; expense: boolean } {
+  let revenue = false;
+  let expense = false;
   for (const line of lines) {
-    if (line.kind !== "cost_centers") continue;
-    for (const ccId of line.costCenterIds) {
-      if (line.measure === "revenue" || line.measure === "net") revenue.add(ccId);
-      if (line.measure === "expense" || line.measure === "net") expense.add(ccId);
-    }
+    if (line.kind !== "filter" || !lineMatches(line, key)) continue;
+    if (line.measure === "revenue" || line.measure === "net") revenue = true;
+    if (line.measure === "expense" || line.measure === "net") expense = true;
   }
   return { revenue, expense };
 }
 
 /** Sobra de dinheiro que nenhuma linha do modelo captura, em regime líquido. */
-function unclassifiedOf(
-  rows: readonly MonthlySeriesRow[],
-  covered: { revenue: Set<string>; expense: Set<string> },
-): number {
+function unclassifiedOf(lines: readonly BalanceLine[], buckets: Map<string, Bucket>): number {
   let sum = 0;
-  for (const row of rows) {
-    const id = row.costCenterId;
-    if (id == null || !covered.revenue.has(id)) sum += row.revenue;
-    if (id == null || !covered.expense.has(id)) sum -= row.expense;
+  for (const bucket of buckets.values()) {
+    const covered = coverageOf(lines, bucket.key);
+    if (!covered.revenue) sum += bucket.revenue;
+    if (!covered.expense) sum -= bucket.expense;
   }
   return round2(sum);
+}
+
+function drilldownKey(key: SeriesKey, d: DrilldownKey["d"]): DrilldownKey {
+  return { m: key.managementAccountId, a: key.areaId, n: key.nature, d };
+}
+
+function directionOf(measure: BalanceMeasure): DrilldownKey["d"] {
+  if (measure === "revenue") return "inflow";
+  if (measure === "expense") return "outflow";
+  return null;
+}
+
+/** As chaves que a linha soma no período — o que a gaveta de lançamentos consulta. */
+function filterDrilldown(line: FilterLine, buckets: Map<string, Bucket>): BalanceDrilldown {
+  const d = directionOf(line.measure);
+  const keys = [...buckets.values()]
+    .filter((bucket) => lineMatches(line, bucket.key))
+    .map((bucket) => drilldownKey(bucket.key, d));
+  return { kind: "filter", keys, measure: line.measure };
+}
+
+/** As chaves do "Não classificado": cada lado que nenhuma linha cobre. */
+function unclassifiedDrilldown(
+  lines: readonly BalanceLine[],
+  buckets: Map<string, Bucket>,
+): BalanceDrilldown {
+  const keys: DrilldownKey[] = [];
+  for (const bucket of buckets.values()) {
+    const covered = coverageOf(lines, bucket.key);
+    if (covered.revenue && covered.expense) continue;
+    if (!covered.revenue && !covered.expense) keys.push(drilldownKey(bucket.key, null));
+    else if (!covered.revenue) keys.push(drilldownKey(bucket.key, "inflow"));
+    else keys.push(drilldownKey(bucket.key, "outflow"));
+  }
+  return { kind: "unclassified", keys, measure: null };
 }
 
 /**
@@ -287,13 +388,14 @@ export function buildBalanceMatrix({ from, to, series, lines }: BuildMatrixInput
 
   const perMonth = months.map((month) => {
     const rows = rowsByMonth.get(month) ?? [];
-    return evaluate(lines, order, broken, bucketsByCostCenter(rows));
+    return evaluate(lines, order, broken, bucketsByKey(rows));
   });
 
   // O total do período é recalculado sobre o agregado, e não somado dos meses.
   // Para soma e fórmula dá no mesmo (são lineares); para percentual não: a margem
   // do ano é lucro_do_ano ÷ receita_do_ano, nunca a soma das margens mensais.
-  const totals = evaluate(lines, order, broken, bucketsByCostCenter(series));
+  const periodBuckets = bucketsByKey(series);
+  const totals = evaluate(lines, order, broken, periodBuckets);
 
   const matrixLines: BalanceMatrixLine[] = lines.map((line) => {
     const format = line.kind === "ratio" ? "percent" : "currency";
@@ -308,21 +410,15 @@ export function buildBalanceMatrix({ from, to, series, lines }: BuildMatrixInput
       deltas: monthOverMonth(values, format),
       deltaUnit: format === "percent" ? "points" : "percent",
       total: totals.get(line.id) ?? null,
-      drilldown:
-        line.kind === "cost_centers"
-          ? {
-              kind: "cost_centers",
-              costCenterIds: [...line.costCenterIds],
-              measure: line.measure,
-            }
-          : null,
+      drilldown: line.kind === "filter" ? filterDrilldown(line, periodBuckets) : null,
     };
   });
 
-  const covered = coverage(lines);
-  const unclassifiedTotal = unclassifiedOf(series, covered);
+  const unclassifiedTotal = unclassifiedOf(lines, periodBuckets);
   if (Math.abs(unclassifiedTotal) >= EPSILON) {
-    const values = months.map((month) => unclassifiedOf(rowsByMonth.get(month) ?? [], covered));
+    const values = months.map((month) =>
+      unclassifiedOf(lines, bucketsByKey(rowsByMonth.get(month) ?? [])),
+    );
     matrixLines.push({
       id: UNCLASSIFIED_ID,
       label: UNCLASSIFIED_LABEL,
@@ -333,11 +429,7 @@ export function buildBalanceMatrix({ from, to, series, lines }: BuildMatrixInput
       deltas: monthOverMonth(values, "currency"),
       deltaUnit: "percent",
       total: unclassifiedTotal,
-      drilldown: {
-        kind: "unclassified",
-        revenueCovered: [...covered.revenue],
-        expenseCovered: [...covered.expense],
-      },
+      drilldown: unclassifiedDrilldown(lines, periodBuckets),
     });
   }
 
@@ -347,35 +439,45 @@ export function buildBalanceMatrix({ from, to, series, lines }: BuildMatrixInput
 export interface ModelIssues {
   /** Linhas com ciclo ou referência para linha inexistente. */
   brokenLineIds: string[];
-  /** Centros de custo em mais de uma linha — o dinheiro entra duas vezes no total. */
-  duplicatedCostCenterIds: string[];
-  /** Centros referenciados que não existem mais na empresa. */
-  unknownCostCenterIds: string[];
+  /**
+   * Linhas que pegam o mesmo pedaço da série — o dinheiro entra duas vezes no total. Só
+   * conta o que tem movimento no período: sobreposição que não soma nada não é aviso.
+   */
+  overlappingLineIds: string[];
+  /** Linhas que apontam para item gerencial ou área que não existe mais. */
+  unknownReferenceLineIds: string[];
 }
 
 /** Problemas do modelo que valem aviso na UI (nenhum impede o relatório de rodar). */
 export function analyzeModel(
   lines: readonly BalanceLine[],
-  knownCostCenterIds: readonly string[],
+  series: readonly MonthlySeriesRow[],
+  known: { managementAccountIds: readonly string[]; areaIds: readonly string[] },
 ): ModelIssues {
   const { broken } = evaluationOrder(lines);
-  const known = new Set(knownCostCenterIds);
-  const seen = new Set<string>();
-  const duplicated = new Set<string>();
-  const unknown = new Set<string>();
+  const filterLines = lines.filter((l): l is FilterLine => l.kind === "filter");
+  const knownManagement = new Set(known.managementAccountIds);
+  const knownAreas = new Set(known.areaIds);
 
-  for (const line of lines) {
-    if (line.kind !== "cost_centers") continue;
-    for (const ccId of line.costCenterIds) {
-      if (seen.has(ccId)) duplicated.add(ccId);
-      seen.add(ccId);
-      if (!known.has(ccId)) unknown.add(ccId);
-    }
+  const overlapping = new Set<string>();
+  for (const bucket of bucketsByKey(series).values()) {
+    const hits = filterLines.filter((line) => lineMatches(line, bucket.key));
+    if (hits.length > 1) for (const hit of hits) overlapping.add(hit.id);
   }
+
+  const unknown = filterLines
+    .filter((line) =>
+      line.clauses.some(
+        (c) =>
+          c.managementAccountIds.some((id) => !knownManagement.has(id)) ||
+          (c.areaIds ?? []).some((id) => !knownAreas.has(id)),
+      ),
+    )
+    .map((line) => line.id);
 
   return {
     brokenLineIds: [...broken],
-    duplicatedCostCenterIds: [...duplicated],
-    unknownCostCenterIds: [...unknown],
+    overlappingLineIds: [...overlapping],
+    unknownReferenceLineIds: unknown,
   };
 }

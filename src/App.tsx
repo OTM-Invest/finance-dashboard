@@ -42,6 +42,13 @@ const AuditPage = lazy(() => import("@/routes/audit"));
 const RecurringPage = lazy(() => import("@/routes/recurring"));
 const SettingsBanksPage = lazy(() => import("@/routes/settings.banks"));
 const SettingsCostCentersPage = lazy(() => import("@/routes/settings.cost-centers"));
+const SettingsManagementPlanPage = lazy(() => import("@/routes/settings.management-plan"));
+const SettingsClassificationRulesPage = lazy(
+  () => import("@/routes/settings.classification-rules"),
+);
+const CardStatementsPage = lazy(() => import("@/routes/card-statements"));
+const SpendingPage = lazy(() => import("@/routes/gastos"));
+const CardStatementDetailPage = lazy(() => import("@/routes/card-statements.detail"));
 const SettingsCounterpartiesPage = lazy(() => import("@/routes/settings.counterparties"));
 const SettingsPayrollPage = lazy(() => import("@/routes/settings.payroll"));
 const CompaniesPage = lazy(() => import("@/routes/companies"));
@@ -117,6 +124,9 @@ export default function App() {
                     <Route path="recurring" element={<RecurringPage />} />
                     <Route path="audit" element={<AuditPage />} />
                     <Route path="import" element={<ImportPage />} />
+                    <Route path="gastos" element={<SpendingPage />} />
+                    <Route path="faturas" element={<CardStatementsPage />} />
+                    <Route path="faturas/:id" element={<CardStatementDetailPage />} />
                     <Route path="integracoes" element={<IntegracoesPage />} />
                     <Route path="integracoes/:slug" element={<IntegracaoDetailPage />} />
                     <Route path="webhooks" element={<WebhooksPage />} />
@@ -128,6 +138,11 @@ export default function App() {
                     <Route path="settings" element={<SettingsLayout />}>
                       <Route path="banks" element={<SettingsBanksPage />} />
                       <Route path="cost-centers" element={<SettingsCostCentersPage />} />
+                      <Route path="management-plan" element={<SettingsManagementPlanPage />} />
+                      <Route
+                        path="classification-rules"
+                        element={<SettingsClassificationRulesPage />}
+                      />
                       <Route path="counterparties" element={<SettingsCounterpartiesPage />} />
                       <Route path="payroll" element={<SettingsPayrollPage />} />
                     </Route>

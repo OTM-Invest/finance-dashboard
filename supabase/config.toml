@@ -408,6 +408,10 @@ verify_jwt = false
 [functions.pagarme-sandbox]
 verify_jwt = true
 
+# Sugestão de classificação por IA — usa o JWT de quem chama para ler e gravar (RLS).
+[functions.card-lines-suggest]
+verify_jwt = true
+
 # Gestão de usuários — exigem JWT (verify_jwt=true, o default) e ainda checam
 # super_admin dentro da função antes de usar o service role.
 [functions.admin-create-user]

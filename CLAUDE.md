@@ -281,6 +281,61 @@ aritmética ou o calendário mudarem.
 > modelo, banco, RLS, calendário, arredondamento, as divergências encontradas nas
 > planilhas (com os valores) e o que ficou em aberto para a contabilidade.
 
+## Plano gerencial, áreas & Central de Gastos
+
+Em construção por fases. **Estado, o que falta e mudanças de rota:**
+[`docs/features/central-de-gastos.md`](docs/features/central-de-gastos.md) — leia
+primeiro. Histórico das decisões:
+[`docs/features/central-de-gastos-plan.md`](docs/features/central-de-gastos-plan.md).
+Feitas: **Fase 0** (plano gerencial + mapa conta → item, `/settings/management-plan`) e
+**Fase 1** (centro de custo vira área; Balanço por filtro sobre o plano gerencial) e
+**Fase 2** (fatura de cartão aberta em compras, `/faturas`) e **Fase 3** (regras de
+classificação e sugestão por IA) e **Fase 5** (Central `/gastos` + tool de MCP
+`management_breakdown`).
+
+⚠️ **A Central conta com `_shared/management/breakdown.ts`** (gasto = saída − entrada,
+cobertura, fornecedor, assinatura); a tela reexporta, o MCP importa. A RPC
+`management_breakdown_multi` devolve agregado SEM mês — por fornecedor o consolidado passa
+de mil linhas e o PostgREST corta em silêncio: a tela pagina com ordem total, o MCP recorta
+(`p_by_vendor=false`/`p_codes`) e avisa no teto.
+
+⚠️ **Centro de custo É ÁREA.** `cost_centers` responde só "para qual time é o gasto"
+(Assessores, Apoio, Diretoria, Tecnologia…). "O que o gasto é" (receita, imposto, capex,
+distribuição) NÃO volta a ser centro: sai da conta, pelo plano gerencial. A tabela manteve
+o nome técnico; na UI é "Área".
+
+⚠️ **O item gerencial sai da CONTA, não do lançamento.** O mapa mora em
+`chart_of_accounts_master.management_account_id` (vale para todas as empresas);
+`chart_of_accounts.management_account_id` é exceção de uma empresa; conta sem nenhum dos
+dois cai no item padrão do tipo (`default_management_account_code`). A regra efetiva tem
+UMA implementação: `v_account_management_map`. Conta aponta para ITEM, nunca para grupo,
+de tipo compatível (`management_kind_accepts`).
+
+⚠️ **Opex/capex é do item, com exceção no lançamento** (`transactions.nature_override`).
+É o que guarda o "isto foi investimento" que antes só existia no centro CAPEX.
+
+⚠️ **O Balanço soma FILTROS** (`kind: "filter"`): item/grupo × área × natureza, sobre
+`v_management_lines`. A regra de que linha soma o quê tem uma implementação só —
+`clauseMatches`/`lineMatches` em `balance/compute.ts`; o banco só filtra pelas chaves
+exatas que o cliente manda (`management_line_transactions`). Não reimplemente o casamento
+em SQL de produção.
+
+⚠️ **Uuid de área vive dentro de jsonb** — `balance_report_models.lines[].clauses[].areaIds`.
+`merge_cost_centers` remapeia; qualquer outra operação que mova ou apague área precisa
+fazer o mesmo, senão a linha soma zero em silêncio.
+
+⚠️ **Fatura de cartão detalhada não é lançamento.** As compras vivem em
+`card_statement_lines`, penduradas no lançamento da fatura (`card_statements.transaction_id`).
+Só fatura `reconciled` — linhas fecham com o total, os subtotais por cartão e o valor do
+lançamento, conferidos pelo BANCO em `save_card_statement` — troca o lançamento pelas
+compras em `v_management_lines`. Valor de linha não se edita (trigger); para corrigir,
+apaga e reimporta. Leitor e validador têm uma implementação: `_shared/cards/`.
+
+⚠️ **Sugestão de IA não conta.** Compra de cartão com `classification_status = 'suggested'`
+aparece na tela mas soma como "Fatura de cartão" em `v_management_lines` até alguém
+aceitar. Regra (`classification_rules`) é decisão humana e conta como confirmada. A Edge
+Function `card-lines-suggest` lê e grava com o JWT de quem chamou.
+
 ## Escopo de empresa & grupos de agregação
 
 O seletor superior tem **três** formas de escopo, não duas: uma empresa, `Consolidado`
@@ -312,9 +367,10 @@ organização, usada por qualquer empresa (`…_central_de_custos_global`). Logo
 colaboradores, mapeamentos de folha e as linhas do balanço no centro escolhido e apaga os
 outros.
 
-⚠️ **Uuid de centro de custo também vive dentro de jsonb.** `balance_report_models.lines`
-guarda `costCenterIds`; qualquer remap ou fusão que esqueça esse jsonb deixa linha de
-balanço apontando para centro apagado, somando zero em silêncio.
+⚠️ **Uuid de centro de custo (área) também vive dentro de jsonb.** `balance_report_models.lines`
+guarda `clauses[].areaIds` (era `costCenterIds` até a Fase 1); qualquer remap ou fusão que
+esqueça esse jsonb deixa linha de balanço apontando para área apagada, somando zero em
+silêncio.
 
 > 📘 **Referência técnica completa:**
 > [`docs/features/grupos-de-agregacao.md`](docs/features/grupos-de-agregacao.md) —
@@ -364,7 +420,7 @@ ChatGPT, Claude Code) em linguagem natural, autenticado pelo login de cada pesso
 o OAuth 2.1 Server do Supabase. Núcleo em `supabase/functions/_shared/mcp/`,
 transportes em `scripts/mcp-stdio.ts` (local) e `workers/mcp/` (Cloudflare Worker).
 
-**22 tools**, do contexto (`list_companies`, `list_dimensions`) ao panorama composto
+**23 tools**, do contexto (`list_companies`, `list_dimensions`) ao panorama composto
 (`monthly_briefing`), passando por resultado, caixa e bancos, títulos, análise por
 dimensão, vendas, fiscal, notas e folha — com `sql_query` como última saída. O catálogo
 e a ORDEM dele são fixados por teste em `registry.test.ts`: tool nova é decisão

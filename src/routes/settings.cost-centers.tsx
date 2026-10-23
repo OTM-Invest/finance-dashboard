@@ -71,7 +71,7 @@ export default function SettingsCostCentersPage() {
       {
         onSuccess: (moved) => {
           toast.success(`Fundido em "${targetName}"`, {
-            description: `${moved} lançamento(s) passaram para este centro.`,
+            description: `${moved} lançamento(s) passaram para esta área.`,
           });
           setSelectedIds([]);
           setTargetId(null);
@@ -89,10 +89,10 @@ export default function SettingsCostCentersPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold tracking-tight">Central de custos</h2>
+          <h2 className="text-lg font-semibold tracking-tight">Áreas</h2>
           <p className="mt-1 text-sm text-text-muted">
-            Uma lista só, usada por todas as empresas do grupo. Departamentos, filiais ou projetos
-            para classificar despesas.
+            Para qual time é cada gasto — uma lista só, usada por todas as empresas do grupo. O que
+            o gasto é (receita, imposto, capex) não é área: sai da conta, pelo plano gerencial.
           </p>
         </div>
         <Button
@@ -109,7 +109,7 @@ export default function SettingsCostCentersPage() {
       {selected.length > 0 && (
         <div className="flex flex-wrap items-end gap-3 rounded-[var(--radius-md)] border border-accent bg-accent-soft/30 p-3">
           <div className="flex min-w-[240px] flex-1 flex-col gap-1.5">
-            <Label htmlFor="merge-target">Manter qual centro?</Label>
+            <Label htmlFor="merge-target">Manter qual área?</Label>
             <Select
               value={effectiveTarget}
               onValueChange={(v) => setTargetId(v)}
@@ -128,7 +128,7 @@ export default function SettingsCostCentersPage() {
             </Select>
             <p className="text-2xs text-text-subtle">
               {selected.length === 1
-                ? "Escolha mais um centro para fundir."
+                ? "Escolha mais uma área para fundir."
                 : `Os outros ${selected.length - 1} serão apagados e tudo que aponta para eles passa para este.`}
             </p>
           </div>
@@ -159,7 +159,7 @@ export default function SettingsCostCentersPage() {
         </div>
       ) : rows.length === 0 ? (
         <div className="rounded-[var(--radius-lg)] border border-dashed border-border bg-surface p-12 text-center text-sm text-text-muted">
-          Nenhum centro de custo cadastrado.
+          Nenhuma área cadastrada.
         </div>
       ) : (
         <div className="overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface">
@@ -247,13 +247,13 @@ export default function SettingsCostCentersPage() {
         title={`Fundir em "${targetName}"?`}
         description={
           <>
-            Tudo que aponta para os outros {selected.length - 1} centro(s) — lançamentos,
+            Tudo que aponta para as outras {selected.length - 1} área(s) — lançamentos,
             recorrências, colaboradores e as linhas do balanço — passa para{" "}
-            <strong>{targetName}</strong>, e eles são apagados.
+            <strong>{targetName}</strong>, e elas são apagadas.
             <br />
             <br />
             <strong>Não tem como desfazer.</strong> Nenhum valor muda: o lançamento continua
-            existindo, só classificado no centro que ficou.
+            existindo, só classificado na área que ficou.
           </>
         }
         confirmLabel="Fundir"

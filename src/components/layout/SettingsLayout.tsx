@@ -4,7 +4,9 @@ import { cn } from "@/lib/cn";
 
 const NAV = [
   { to: "/settings/banks", label: "Contas bancárias" },
-  { to: "/settings/cost-centers", label: "Centros de custo" },
+  { to: "/settings/cost-centers", label: "Áreas" },
+  { to: "/settings/management-plan", label: "Plano gerencial" },
+  { to: "/settings/classification-rules", label: "Regras de classificação" },
   { to: "/settings/counterparties", label: "Contrapartes" },
   { to: "/settings/payroll", label: "Folha de pagamento" },
 ] as const;
@@ -23,7 +25,7 @@ export function SettingsLayout() {
           Cadastros & Estrutura
         </h1>
         <p className="mt-1 text-sm text-text-muted">
-          Gerencie contas bancárias, centros de custo e contrapartes usadas nos lançamentos.
+          Gerencie contas bancárias, áreas, plano gerencial e contrapartes usados nos lançamentos.
         </p>
       </div>
 
@@ -78,7 +80,11 @@ function descricaoFor(to: string): string {
     case "/settings/banks":
       return "Adicionar ou editar contas bancárias e saldos iniciais.";
     case "/settings/cost-centers":
-      return "Departamentos, filiais e projetos usados na alocação de despesas.";
+      return "Os times da organização: para quem é cada gasto.";
+    case "/settings/management-plan":
+      return "O que cada gasto é — pessoas, tecnologia, ocupação —, a partir da conta contábil.";
+    case "/settings/classification-rules":
+      return "Como as compras de cartão são classificadas sozinhas, pela descrição.";
     case "/settings/counterparties":
       return "Clientes, fornecedores e demais contrapartes vinculadas a lançamentos.";
     default:

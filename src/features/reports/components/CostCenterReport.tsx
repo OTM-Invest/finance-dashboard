@@ -46,7 +46,7 @@ export function CostCenterReport({ companyIds, from, to }: Props) {
           size="sm"
           onClick={() => {
             const csv = toCsv<CostCenterRow>(data, [
-              { key: "name", header: "Centro de custo", getValue: (r) => r.name },
+              { key: "name", header: "Área", getValue: (r) => r.name },
               { key: "revenue", header: "Receita", getValue: (r) => r.revenue.toFixed(2) },
               { key: "expense", header: "Despesa", getValue: (r) => r.expense.toFixed(2) },
               { key: "net", header: "Resultado", getValue: (r) => r.net.toFixed(2) },
@@ -71,7 +71,7 @@ export function CostCenterReport({ companyIds, from, to }: Props) {
         <table className="w-full text-sm">
           <thead className="bg-surface-2">
             <tr className="text-2xs font-medium tracking-wide text-text-subtle uppercase">
-              <th className="px-3 py-2.5 text-left">Centro de custo</th>
+              <th className="px-3 py-2.5 text-left">Área</th>
               <th className="px-3 py-2.5 text-right">Receita</th>
               <th className="px-3 py-2.5 text-right">Despesa</th>
               <th className="px-3 py-2.5 text-right">Resultado</th>
