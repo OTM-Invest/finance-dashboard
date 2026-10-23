@@ -22,7 +22,12 @@ import { formatBRL, formatNumber, formatPercent } from "@/lib/format";
 
 import { LINE_TRANSACTIONS_LIMIT, type LineTransaction } from "../api";
 import type { BalanceMatrixLine } from "../compute";
-import { BASIS_LABELS, describeDrilldown, type AccountingBasis } from "../drilldown";
+import {
+  BASIS_LABELS,
+  describeDrilldown,
+  drilldownSpansAreas,
+  type AccountingBasis,
+} from "../drilldown";
 import { useLineTransactions } from "../hooks";
 
 interface Props {
@@ -73,10 +78,9 @@ export function BalanceLineTransactionsSheet({
   const totalCount = query.data?.totalCount ?? 0;
   const truncated = totalCount > rows.length;
 
-  // Com um centro só, repetir o nome em toda linha é ruído — ele já está no
-  // título da gaveta. Com vários (ou no "Não classificado"), é informação.
-  const showCostCenter =
-    drilldown != null && (drilldown.kind === "unclassified" || drilldown.costCenterIds.length > 1);
+  // Com uma área só, repetir o nome em toda linha é ruído. Com várias (ou no "Não
+  // classificado"), é informação.
+  const showArea = drilldown != null && drilldownSpansAreas(drilldown);
 
   const total =
     line?.total == null
@@ -92,10 +96,7 @@ export function BalanceLineTransactionsSheet({
           <SheetTitle>{line?.label ?? "—"}</SheetTitle>
           <SheetDescription>
             {drilldown
-              ? `${describeDrilldown(
-                  drilldown,
-                  drilldown.kind === "cost_centers" ? drilldown.costCenterIds.length : 0,
-                )} · ${periodLabel} · ${BASIS_LABELS[basis]}`
+              ? `${describeDrilldown(drilldown)} · ${periodLabel} · ${BASIS_LABELS[basis]}`
               : `${periodLabel} · ${BASIS_LABELS[basis]}`}
           </SheetDescription>
         </SheetHeader>
@@ -141,9 +142,9 @@ export function BalanceLineTransactionsSheet({
                       valor têm `shrink-0`, então o valor nunca é cortado. */}
                   <div className="text-2xs mt-1 flex items-baseline gap-2 text-text-muted">
                     <span className="shrink-0 font-mono">{formatDate(row.accrual_date)}</span>
-                    {showCostCenter && (
+                    {showArea && (
                       <span className="shrink-0 text-text-subtle">
-                        {row.cost_center?.name ?? "Sem centro"}
+                        {row.area?.name ?? "Sem área"}
                       </span>
                     )}
                     {/* `min-w-0` é o que permite encolher: filho de flex tem

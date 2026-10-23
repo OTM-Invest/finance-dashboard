@@ -281,26 +281,37 @@ aritmética ou o calendário mudarem.
 > modelo, banco, RLS, calendário, arredondamento, as divergências encontradas nas
 > planilhas (com os valores) e o que ficou em aberto para a contabilidade.
 
-## Plano gerencial & Central de Gastos
+## Plano gerencial, áreas & Central de Gastos
 
 Em construção por fases (plano em
 [`docs/features/central-de-gastos-plan.md`](docs/features/central-de-gastos-plan.md)).
-**Fase 0 feita:** `management_accounts` (plano gerencial da organização, grupo → item) e
-o mapa conta → item, editados em `/settings/management-plan`. Nada lê o plano ainda; a
-Fase 1 migra o Balanço para ele.
+Feitas: **Fase 0** (plano gerencial + mapa conta → item, `/settings/management-plan`) e
+**Fase 1** (centro de custo vira área; Balanço por filtro sobre o plano gerencial).
+
+⚠️ **Centro de custo É ÁREA.** `cost_centers` responde só "para qual time é o gasto"
+(Assessores, Apoio, Diretoria, Tecnologia…). "O que o gasto é" (receita, imposto, capex,
+distribuição) NÃO volta a ser centro: sai da conta, pelo plano gerencial. A tabela manteve
+o nome técnico; na UI é "Área".
 
 ⚠️ **O item gerencial sai da CONTA, não do lançamento.** O mapa mora em
 `chart_of_accounts_master.management_account_id` (vale para todas as empresas);
 `chart_of_accounts.management_account_id` é exceção de uma empresa; conta sem nenhum dos
 dois cai no item padrão do tipo (`default_management_account_code`). A regra efetiva tem
-UMA implementação: `v_account_management_map`. Não recombine as três fontes no cliente.
+UMA implementação: `v_account_management_map`. Conta aponta para ITEM, nunca para grupo,
+de tipo compatível (`management_kind_accepts`).
 
-⚠️ **Conta aponta para ITEM, nunca para grupo** (trigger
-`check_account_management_mapping`) — grupo como destino deixaria o Balanço sem saber em
-que linha somar. Plano tem exatamente dois níveis e item herda o `kind` do grupo.
+⚠️ **Opex/capex é do item, com exceção no lançamento** (`transactions.nature_override`).
+É o que guarda o "isto foi investimento" que antes só existia no centro CAPEX.
 
-⚠️ **O `code` do item é a chave estável** (`pessoas.salario_fixo`): migration futura
-referencia por ele. O nome pode mudar na tela; o código não.
+⚠️ **O Balanço soma FILTROS** (`kind: "filter"`): item/grupo × área × natureza, sobre
+`v_management_lines`. A regra de que linha soma o quê tem uma implementação só —
+`clauseMatches`/`lineMatches` em `balance/compute.ts`; o banco só filtra pelas chaves
+exatas que o cliente manda (`management_line_transactions`). Não reimplemente o casamento
+em SQL de produção.
+
+⚠️ **Uuid de área vive dentro de jsonb** — `balance_report_models.lines[].clauses[].areaIds`.
+`merge_cost_centers` remapeia; qualquer outra operação que mova ou apague área precisa
+fazer o mesmo, senão a linha soma zero em silêncio.
 
 ## Escopo de empresa & grupos de agregação
 
@@ -333,9 +344,10 @@ organização, usada por qualquer empresa (`…_central_de_custos_global`). Logo
 colaboradores, mapeamentos de folha e as linhas do balanço no centro escolhido e apaga os
 outros.
 
-⚠️ **Uuid de centro de custo também vive dentro de jsonb.** `balance_report_models.lines`
-guarda `costCenterIds`; qualquer remap ou fusão que esqueça esse jsonb deixa linha de
-balanço apontando para centro apagado, somando zero em silêncio.
+⚠️ **Uuid de centro de custo (área) também vive dentro de jsonb.** `balance_report_models.lines`
+guarda `clauses[].areaIds` (era `costCenterIds` até a Fase 1); qualquer remap ou fusão que
+esqueça esse jsonb deixa linha de balanço apontando para área apagada, somando zero em
+silêncio.
 
 > 📘 **Referência técnica completa:**
 > [`docs/features/grupos-de-agregacao.md`](docs/features/grupos-de-agregacao.md) —

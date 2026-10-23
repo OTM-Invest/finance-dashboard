@@ -3,13 +3,16 @@ import { describe, expect, it } from "vitest";
 import {
   analyzeModel,
   buildBalanceMatrix,
+  clauseMatches,
   evaluationOrder,
+  lineMatches,
   monthAxis,
   monthOverMonth,
   UNCLASSIFIED_LABEL,
   type MonthlySeriesRow,
+  type SeriesKey,
 } from "./compute";
-import type { BalanceLine } from "./schema";
+import { emptyClause, type BalanceClause, type BalanceLine, type FilterLine } from "./schema";
 
 /* ─── Modelo da planilha "Balanço OTM" ──────────────────────────────────
  * Ebitda       = Receita − Assessores − Opex − Áreas de Apoio
@@ -17,6 +20,7 @@ import type { BalanceLine } from "./schema";
  * Lucro+Bônus  = Lucro Líquido + Bônus
  * Margem Líq.  = Lucro Líquido ÷ Receita
  */
+/** Um item gerencial por "conta" da planilha; o grupo só importa nos testes de cláusula. */
 const CC = {
   receita: "11111111-1111-4111-8111-111111111111",
   bonus: "22222222-2222-4222-8222-222222222222",
@@ -27,13 +31,36 @@ const CC = {
   apoio: "77777777-7777-4777-8777-777777777777",
 };
 
+const GROUP = "99999999-9999-4999-8999-999999999999";
+
 function item(
   id: string,
   label: string,
-  ccId: string,
+  managementId: string,
   measure: "revenue" | "expense",
 ): BalanceLine {
-  return { id, label, kind: "cost_centers", measure, costCenterIds: [ccId], emphasis: false };
+  return {
+    id,
+    label,
+    kind: "filter",
+    measure,
+    clauses: [{ ...emptyClause(), managementAccountIds: [managementId] }],
+    emphasis: false,
+  };
+}
+
+/** Uma linha da série, só com o que importa ao caso. */
+function row(
+  partial: Partial<MonthlySeriesRow> & { revenue: number; expense: number },
+): MonthlySeriesRow {
+  return {
+    month: "2024-01-01",
+    managementAccountId: null,
+    managementGroupId: GROUP,
+    areaId: null,
+    nature: null,
+    ...partial,
+  };
 }
 
 const SPREADSHEET_MODEL: BalanceLine[] = [
@@ -87,7 +114,7 @@ const SPREADSHEET_MODEL: BalanceLine[] = [
   },
 ];
 
-/** Uma linha de série por centro, montada a partir dos valores da planilha. */
+/** Uma linha de série por item, montada a partir dos valores da planilha. */
 function monthRows(
   month: string,
   v: {
@@ -101,13 +128,13 @@ function monthRows(
   },
 ): MonthlySeriesRow[] {
   return [
-    { month, costCenterId: CC.receita, revenue: v.receita, expense: 0 },
-    { month, costCenterId: CC.bonus, revenue: v.bonus, expense: 0 },
-    { month, costCenterId: CC.impostos, revenue: 0, expense: v.impostos },
-    { month, costCenterId: CC.assessores, revenue: 0, expense: v.assessores },
-    { month, costCenterId: CC.opex, revenue: 0, expense: v.opex },
-    { month, costCenterId: CC.capex, revenue: 0, expense: v.capex },
-    { month, costCenterId: CC.apoio, revenue: 0, expense: v.apoio },
+    row({ month, managementAccountId: CC.receita, revenue: v.receita, expense: 0 }),
+    row({ month, managementAccountId: CC.bonus, revenue: v.bonus, expense: 0 }),
+    row({ month, managementAccountId: CC.impostos, revenue: 0, expense: v.impostos }),
+    row({ month, managementAccountId: CC.assessores, revenue: 0, expense: v.assessores }),
+    row({ month, managementAccountId: CC.opex, revenue: 0, expense: v.opex }),
+    row({ month, managementAccountId: CC.capex, revenue: 0, expense: v.capex }),
+    row({ month, managementAccountId: CC.apoio, revenue: 0, expense: v.apoio }),
   ];
 }
 
@@ -244,7 +271,7 @@ describe("buildBalanceMatrix — total do período", () => {
 describe("buildBalanceMatrix — linha 'Não classificado'", () => {
   const soReceita: BalanceLine[] = [item("receita", "Receita", CC.receita, "revenue")];
 
-  it("captura centro de custo que nenhuma linha referencia", () => {
+  it("captura item que nenhuma linha referencia", () => {
     const matrix = buildBalanceMatrix({
       from: "2024-01-01",
       to: "2024-01-31",
@@ -252,28 +279,30 @@ describe("buildBalanceMatrix — linha 'Não classificado'", () => {
       lines: soReceita,
     });
 
-    // Tudo menos a receita: as despesas dos centros fora do modelo, com sinal negativo.
+    // Tudo menos a receita: as despesas dos itens fora do modelo, com sinal negativo.
     const despesas = 128_932.74 + 131_253.56 + 50_249.16 + 12_295.0;
     expect(lineByLabel(matrix, UNCLASSIFIED_LABEL).total).toBeCloseTo(-despesas, 2);
   });
 
-  it("captura lançamento sem centro de custo", () => {
+  it("captura lançamento sem item gerencial (transferência, patrimonial)", () => {
     const matrix = buildBalanceMatrix({
       from: "2024-01-01",
       to: "2024-01-31",
-      series: [{ month: "2024-01-01", costCenterId: null, revenue: 900, expense: 400 }],
+      series: [
+        row({ managementAccountId: null, managementGroupId: null, revenue: 900, expense: 400 }),
+      ],
       lines: soReceita,
     });
 
     expect(lineByLabel(matrix, UNCLASSIFIED_LABEL).total).toBeCloseTo(500, 2);
   });
 
-  it("captura a entrada de um centro coberto só pelo lado da despesa", () => {
+  it("captura a entrada de um item coberto só pelo lado da despesa", () => {
     // Opex com um estorno de 1.000: a linha 'expense' não enxerga essa entrada.
     const matrix = buildBalanceMatrix({
       from: "2024-01-01",
       to: "2024-01-31",
-      series: [{ month: "2024-01-01", costCenterId: CC.opex, revenue: 1_000, expense: 4_000 }],
+      series: [row({ managementAccountId: CC.opex, revenue: 1_000, expense: 4_000 })],
       lines: [item("opex", "Opex", CC.opex, "expense")],
     });
 
@@ -328,7 +357,7 @@ describe("buildBalanceMatrix — modelo malformado", () => {
     const matrix = buildBalanceMatrix({
       from: "2024-01-01",
       to: "2024-01-31",
-      series: [{ month: "2024-01-01", costCenterId: CC.opex, revenue: 0, expense: 500 }],
+      series: [row({ managementAccountId: CC.opex, revenue: 0, expense: 500 })],
       lines: [
         item("receita", "Receita", CC.receita, "revenue"),
         item("opex", "Opex", CC.opex, "expense"),
@@ -366,23 +395,36 @@ describe("evaluationOrder", () => {
 });
 
 describe("analyzeModel", () => {
-  it("aponta centro de custo repetido em mais de uma linha", () => {
+  const known = { managementAccountIds: [CC.opex, CC.receita, GROUP], areaIds: [] };
+
+  it("aponta as linhas que somam o mesmo lançamento", () => {
     const issues = analyzeModel(
       [
         item("a", "A", CC.opex, "expense"),
-        item("b", "B", CC.opex, "expense"),
+        item("b", "B", GROUP, "expense"),
         item("c", "C", CC.receita, "revenue"),
       ],
-      [CC.opex, CC.receita],
+      [row({ managementAccountId: CC.opex, revenue: 0, expense: 10 })],
+      known,
     );
 
-    expect(issues.duplicatedCostCenterIds).toEqual([CC.opex]);
+    expect(issues.overlappingLineIds.sort()).toEqual(["a", "b"]);
   });
 
-  it("aponta centro de custo que não existe mais e linha quebrada", () => {
+  it("não avisa sobreposição que não soma nada no período", () => {
+    const issues = analyzeModel(
+      [item("a", "A", CC.opex, "expense"), item("b", "B", GROUP, "expense")],
+      [],
+      known,
+    );
+
+    expect(issues.overlappingLineIds).toEqual([]);
+  });
+
+  it("aponta item que não existe mais e linha quebrada", () => {
     const issues = analyzeModel(
       [
-        item("a", "A", CC.opex, "expense"),
+        item("a", "A", CC.capex, "expense"),
         {
           id: "b",
           label: "B",
@@ -391,11 +433,144 @@ describe("analyzeModel", () => {
           terms: [{ lineId: "?", sign: 1 }],
         },
       ],
-      [CC.receita],
+      [],
+      known,
     );
 
-    expect(issues.unknownCostCenterIds).toEqual([CC.opex]);
+    expect(issues.unknownReferenceLineIds).toEqual(["a"]);
     expect(issues.brokenLineIds).toEqual(["b"]);
+  });
+});
+
+/* ─── Cláusulas: item × área × natureza ─────────────────────────────── */
+
+const AREA_TI = "abababab-abab-4bab-8bab-abababababab";
+const AREA_APOIO = "cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdcd";
+const PESSOAS = "efefefef-efef-4fef-8fef-efefefefefef";
+const SALARIO = "12121212-1212-4212-8212-121212121212";
+
+function key(partial: Partial<SeriesKey>): SeriesKey {
+  return {
+    managementAccountId: SALARIO,
+    managementGroupId: PESSOAS,
+    areaId: null,
+    nature: "opex",
+    ...partial,
+  };
+}
+
+function clause(partial: Partial<BalanceClause>): BalanceClause {
+  return { ...emptyClause(), ...partial };
+}
+
+describe("clauseMatches", () => {
+  it("casa pelo grupo ou pelo item", () => {
+    expect(clauseMatches(clause({ managementAccountIds: [PESSOAS] }), key({}))).toBe(true);
+    expect(clauseMatches(clause({ managementAccountIds: [SALARIO] }), key({}))).toBe(true);
+    expect(clauseMatches(clause({ managementAccountIds: [CC.opex] }), key({}))).toBe(false);
+  });
+
+  it("nunca casa lançamento sem item gerencial, nem com cláusula vazia", () => {
+    expect(clauseMatches(emptyClause(), key({ managementAccountId: null }))).toBe(false);
+    expect(clauseMatches(emptyClause(), key({}))).toBe(true);
+  });
+
+  it("área nula na cláusula é qualquer área, inclusive nenhuma", () => {
+    expect(clauseMatches(clause({ areaIds: null }), key({ areaId: null }))).toBe(true);
+    expect(clauseMatches(clause({ areaIds: null }), key({ areaId: AREA_TI }))).toBe(true);
+  });
+
+  it("com áreas escolhidas, sem área só entra se a cláusula pedir", () => {
+    const soTi = clause({ areaIds: [AREA_TI] });
+    expect(clauseMatches(soTi, key({ areaId: AREA_TI }))).toBe(true);
+    expect(clauseMatches(soTi, key({ areaId: AREA_APOIO }))).toBe(false);
+    expect(clauseMatches(soTi, key({ areaId: null }))).toBe(false);
+    expect(clauseMatches({ ...soTi, includeNoArea: true }, key({ areaId: null }))).toBe(true);
+  });
+
+  it("filtra pela natureza, e natureza nula pega também o que não tem natureza", () => {
+    expect(clauseMatches(clause({ nature: "capex" }), key({ nature: "opex" }))).toBe(false);
+    expect(clauseMatches(clause({ nature: "capex" }), key({ nature: "capex" }))).toBe(true);
+    expect(clauseMatches(clause({ nature: null }), key({ nature: null }))).toBe(true);
+  });
+});
+
+describe("linha de filtro com duas cláusulas (o OPEX da migração)", () => {
+  // "Todo gasto opex fora de Pessoas" ou "Pessoas sem área".
+  const opex: FilterLine = {
+    id: "opex",
+    label: "OPEX",
+    kind: "filter",
+    measure: "net",
+    emphasis: false,
+    clauses: [
+      clause({ managementAccountIds: [GROUP], nature: "opex" }),
+      clause({ managementAccountIds: [PESSOAS], areaIds: [], includeNoArea: true, nature: "opex" }),
+    ],
+  };
+
+  it("pega Pessoas sem área e deixa Pessoas com área para a linha da área", () => {
+    expect(lineMatches(opex, key({ areaId: null }))).toBe(true);
+    expect(lineMatches(opex, key({ areaId: AREA_TI }))).toBe(false);
+  });
+
+  it("soma uma vez só o lançamento que casa com as duas cláusulas", () => {
+    const amplo: FilterLine = {
+      ...opex,
+      clauses: [clause({ managementAccountIds: [PESSOAS] }), clause({ nature: "opex" })],
+    };
+    const matrix = buildBalanceMatrix({
+      from: "2024-01-01",
+      to: "2024-01-31",
+      series: [
+        row({
+          managementAccountId: SALARIO,
+          managementGroupId: PESSOAS,
+          nature: "opex",
+          revenue: 0,
+          expense: 100,
+        }),
+      ],
+      lines: [amplo],
+    });
+
+    expect(lineByLabel(matrix, "OPEX").total).toBeCloseTo(-100, 2);
+  });
+});
+
+describe("buildBalanceMatrix — drilldown", () => {
+  const lines: BalanceLine[] = [item("opex", "Opex", CC.opex, "expense")];
+  const matrix = buildBalanceMatrix({
+    from: "2024-01-01",
+    to: "2024-02-29",
+    series: [
+      row({ managementAccountId: CC.opex, areaId: AREA_TI, revenue: 50, expense: 300 }),
+      row({
+        month: "2024-02-01",
+        managementAccountId: CC.opex,
+        areaId: AREA_TI,
+        revenue: 0,
+        expense: 200,
+      }),
+      row({ managementAccountId: CC.receita, revenue: 900, expense: 0 }),
+    ],
+    lines,
+  });
+
+  it("manda as chaves que a linha soma, uma vez por período, com o lado da medida", () => {
+    expect(lineByLabel(matrix, "Opex").drilldown).toEqual({
+      kind: "filter",
+      measure: "expense",
+      keys: [{ m: CC.opex, a: AREA_TI, n: null, d: "outflow" }],
+    });
+  });
+
+  it("no 'Não classificado', manda só o lado que nenhuma linha cobre", () => {
+    const unclassified = lineByLabel(matrix, UNCLASSIFIED_LABEL);
+    expect(unclassified.drilldown?.keys).toEqual([
+      { m: CC.opex, a: AREA_TI, n: null, d: "inflow" },
+      { m: CC.receita, a: null, n: null, d: null },
+    ]);
   });
 });
 

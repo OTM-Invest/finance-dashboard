@@ -7,7 +7,7 @@ function line(overrides: Partial<BalanceMatrixLine>): BalanceMatrixLine {
   return {
     id: "l",
     label: "Linha",
-    kind: "cost_centers",
+    kind: "filter",
     emphasis: false,
     format: "currency",
     values: [],

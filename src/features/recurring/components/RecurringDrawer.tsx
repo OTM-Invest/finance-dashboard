@@ -275,7 +275,7 @@ export function RecurringDrawer({ open, onOpenChange, template, companyId }: Pro
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="costCenterId">Centro de custo</Label>
+                <Label htmlFor="costCenterId">Área</Label>
                 <Controller
                   name="costCenterId"
                   control={control}

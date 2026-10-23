@@ -435,6 +435,62 @@ Pendente para começar a Fase 1:
 - Matriz antes × depois de cada modelo de Balanço, gerada contra o remoto, para
   aprovação (§6, passo 7).
 
+## 11.2 Estado da Fase 1 (2026-10-23)
+
+Feito, na mesma branch, **ainda não aplicado no remoto**:
+
+- Migration `…_areas_e_balanco_gerencial`:
+  - `cost_centers` passa a ser **área** (Assessores, Apoio, Diretoria, Tecnologia,
+    Marketing, Comercial, Geral). "Área de Apoio" vira "Apoio" e "Diretoria + TI" vira
+    "Diretoria", mantendo o id; quem é de TI ou do escritório sai para Tecnologia/Apoio
+    pelo cargo do colaborador.
+  - Os centros de natureza (OPEX, CAPEX, Impostos, Distribuição, Receitas, Receitas
+    Jimmy, Rendimentos, Transferência) são desativados; o lançamento fica sem área, e o
+    que era CAPEX ganha `transactions.nature_override = 'capex'`.
+  - `cost_center_migration_log` guarda o centro anterior de cada registro tocado.
+  - `v_management_lines` (lançamento + item gerencial + natureza + área),
+    `management_monthly_series_multi` (série do Balanço) e
+    `management_line_transactions` (gaveta de lançamentos por chave).
+  - Os 6 modelos de Balanço são reescritos para linhas `filter`; "Diretoria + TI" vira
+    Diretoria + Tecnologia, e área com gente no escopo sem linha ganha uma (Apoio na OTM
+    Assessoria), entrando nas fórmulas de Lucro e EBITDA.
+  - A migration confere: nenhuma linha de centro sobra, nenhum lançamento em centro de
+    natureza, nenhum lançamento em duas linhas, nada que era contado fica sem linha.
+  - `merge_cost_centers` passa a remapear a área dentro de `clauses[].areaIds`.
+- Frontend: o Balanço calcula por cláusula (item × área × natureza) em
+  `balance/compute.ts`, com editor de cláusulas; "centro de custo" vira "Área" na
+  interface (a importação de CSV mantém o rótulo antigo da coluna).
+- Teste de banco `supabase/tests/areas_e_balanco_gerencial.sql`: organização com a
+  estrutura de produção, um lançamento por caso decidido, 26 verificações.
+
+### Simulação contra o remoto — 2026 até outubro, competência (R$)
+
+Calculada só com leitura, aplicando as regras desta migration aos lançamentos reais.
+
+| Empresa        | Linha            |     Antes |    Depois | Por quê                                                             |
+| -------------- | ---------------- | --------: | --------: | ------------------------------------------------------------------- |
+| Jimmy          | Receitas         | 3.150.893 | 3.171.420 | "Receitas Jimmy" (16 mil) e publicidade lançada em Receitas (4 mil) |
+| Jimmy          | OPEX             |  −447.175 |  −430.921 | móveis vão para CAPEX, tarifas para Rendimentos, publicidade entra  |
+| Jimmy          | CAPEX            |         0 |   −18.264 | móveis                                                              |
+| Jimmy          | Impostos         |  −229.367 |  −136.287 | IRRF s/ bônus sai                                                   |
+| Jimmy          | Distribuição     |  −894.780 |  −987.860 | IRRF s/ bônus entra                                                 |
+| Jimmy          | Não classificado |    16.427 |         0 | "Receitas Jimmy" passa a ter linha                                  |
+| OTM Assessoria | Diretoria + TI   |  −487.312 |  −253.022 | vira Diretoria + Tecnologia                                         |
+| OTM Assessoria | Área de Apoio    |         — |  −234.289 | gestor de escritório; linha criada                                  |
+| OTM Assessoria | CAPEX            |   −27.943 |   −31.561 | móveis                                                              |
+| OTM Corretora  | CAPEX            |         0 |    −3.924 | móveis                                                              |
+| OTM Corretora  | Distribuição     |  −364.545 |  −361.300 | reembolso de cartão de sócio vai para OPEX                          |
+| RCO            | OPEX / Impostos  |           |      ±300 | IPTU e taxas saem de Impostos                                       |
+
+Geração de caixa só muda onde havia "Não classificado" (Jimmy, +16 mil, que antes não
+entrava em linha nenhuma).
+
+### Para aplicar no remoto
+
+1. PR revisado e `db:reset` + testes de banco verdes (feito localmente).
+2. Conferir a simulação acima com a contabilidade.
+3. `bun run db:push` — a migration falha sozinha se alguma conferência não fechar.
+
 ## 12. Decisões (tomadas em 2026-10-23)
 
 Todas seguem a recomendação do plano.

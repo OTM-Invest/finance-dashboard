@@ -252,7 +252,7 @@ export function EmployeeDrawer({ open, onOpenChange, employee, companyId }: Prop
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="costCenter">
-                  Centro de custo <span className="text-text-subtle">(opcional)</span>
+                  Área <span className="text-text-subtle">(opcional)</span>
                 </Label>
                 <Controller
                   name="costCenterId"
@@ -266,7 +266,7 @@ export function EmployeeDrawer({ open, onOpenChange, employee, companyId }: Prop
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="__none__">— sem centro de custo —</SelectItem>
+                        <SelectItem value="__none__">— sem área —</SelectItem>
                         {costCenters.map((cc) => (
                           <SelectItem key={cc.id} value={cc.id}>
                             {cc.name}

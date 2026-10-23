@@ -1,20 +1,14 @@
 import { supabase, type Enums } from "@/lib/supabase";
+import type { Json } from "@/types/database";
 
 import type { BalanceDrilldown, MonthlySeriesRow } from "./compute";
-import {
-  DATE_COLUMN_BY_BASIS,
-  directionForMeasure,
-  STATUSES_BY_BASIS,
-  unclassifiedOrFilter,
-  type AccountingBasis,
-} from "./drilldown";
+import type { AccountingBasis } from "./drilldown";
 import { parseBalanceLines, type BalanceLine } from "./schema";
 import type { BalanceScope } from "./scope";
 
 /**
- * Série mensal do escopo. Continua por `cost_center_id` (não pela chave de
- * consolidação) porque as linhas do modelo referenciam centros específicos — é isso
- * que permite uma linha somar o "Capex" de três empresas.
+ * Série mensal do escopo por (item gerencial, área, natureza). Que linha soma o quê é
+ * decidido no cliente (compute.ts), sobre esta série.
  */
 export async function fetchMonthlySeries(
   companyIds: string[] | null,
@@ -22,7 +16,7 @@ export async function fetchMonthlySeries(
   to: string,
   basis: AccountingBasis,
 ): Promise<MonthlySeriesRow[]> {
-  const { data, error } = await supabase.rpc("cost_center_monthly_series_multi", {
+  const { data, error } = await supabase.rpc("management_monthly_series_multi", {
     p_company_ids: companyIds ?? undefined,
     p_from: from,
     p_to: to,
@@ -31,7 +25,10 @@ export async function fetchMonthlySeries(
   if (error) throw error;
   return (data ?? []).map((r) => ({
     month: r.month,
-    costCenterId: r.cost_center_id,
+    managementAccountId: r.management_account_id,
+    managementGroupId: r.management_group_id,
+    areaId: r.cost_center_id,
+    nature: r.nature,
     revenue: r.revenue,
     expense: r.expense,
   }));
@@ -112,13 +109,6 @@ export async function saveBalanceModel(
 
 /* ─── Lançamentos por trás de uma linha ──────────────────────────────────── */
 
-const LINE_TX_SELECT = `
-  id, accrual_date, cash_date, description, amount, direction, status, document_ref,
-  account:chart_of_accounts!transactions_account_id_fkey(code, name),
-  cost_center:cost_centers!transactions_cost_center_id_fkey(id, name),
-  counterparty:counterparties!transactions_counterparty_id_fkey(name)
-` as const;
-
 export interface LineTransaction {
   id: string;
   accrual_date: string;
@@ -129,14 +119,14 @@ export interface LineTransaction {
   status: Enums["transaction_status"];
   document_ref: string | null;
   account: { code: string; name: string } | null;
-  cost_center: { id: string; name: string } | null;
+  area: { id: string; name: string } | null;
   counterparty: { name: string } | null;
 }
 
 /**
- * Teto da listagem. Um centro com um ano de movimento passa de mil lançamentos, e
- * a gaveta é para conferir a composição, não para paginar o extrato inteiro —
- * quem precisa disso vai para /transactions com os filtros.
+ * Teto da listagem. Uma linha com um ano de movimento passa de mil lançamentos, e a
+ * gaveta é para conferir a composição, não para paginar o extrato inteiro — quem precisa
+ * disso vai para /transactions com os filtros.
  */
 export const LINE_TRANSACTIONS_LIMIT = 500;
 
@@ -146,6 +136,11 @@ export interface LineTransactionsResult {
   totalCount: number;
 }
 
+/**
+ * Os lançamentos das chaves exatas que a linha soma (ver `BalanceDrilldown`). A RPC
+ * aplica a mesma população da série — regime, status, datas —, então a lista soma o
+ * número da célula clicada.
+ */
 export async function fetchLineTransactions(params: {
   companyIds: string[] | null;
   from: string;
@@ -154,37 +149,31 @@ export async function fetchLineTransactions(params: {
   basis: AccountingBasis;
 }): Promise<LineTransactionsResult> {
   const { companyIds, from, to, drilldown, basis } = params;
+  // Sem chave nenhuma a linha vale zero; não há o que buscar.
+  if (drilldown.keys.length === 0) return { rows: [], totalCount: 0 };
 
-  // A data e os status vêm do regime: a lista precisa dos mesmos filtros da
-  // série, senão ela não soma o número da célula que foi clicada.
-  const dateColumn = DATE_COLUMN_BY_BASIS[basis];
-
-  let query = supabase
-    .from("transactions")
-    .select(LINE_TX_SELECT, { count: "exact" })
-    .is("deleted_at", null)
-    .gte(dateColumn, from)
-    .lte(dateColumn, to)
-    .in("status", [...STATUSES_BY_BASIS[basis]]);
-
-  if (companyIds) query = query.in("company_id", companyIds);
-
-  if (drilldown.kind === "cost_centers") {
-    // Sem centro nenhum a linha vale zero; `in.()` vazio seria erro de sintaxe.
-    if (drilldown.costCenterIds.length === 0) return { rows: [], totalCount: 0 };
-    query = query.in("cost_center_id", drilldown.costCenterIds);
-
-    const direction = directionForMeasure(drilldown.measure);
-    if (direction) query = query.eq("direction", direction);
-  } else {
-    query = query.or(unclassifiedOrFilter(drilldown));
-  }
-
-  const { data, error, count } = await query
-    .order(dateColumn, { ascending: false })
-    .order("amount", { ascending: false })
-    .limit(LINE_TRANSACTIONS_LIMIT);
-
+  const { data, error } = await supabase.rpc("management_line_transactions", {
+    p_from: from,
+    p_to: to,
+    p_basis: basis,
+    p_company_ids: companyIds ?? undefined,
+    p_keys: drilldown.keys as unknown as Json,
+    p_limit: LINE_TRANSACTIONS_LIMIT,
+  });
   if (error) throw error;
-  return { rows: (data ?? []) as unknown as LineTransaction[], totalCount: count ?? 0 };
+
+  const rows = (data ?? []).map((r) => ({
+    id: r.id,
+    accrual_date: r.accrual_date,
+    cash_date: r.cash_date,
+    description: r.description,
+    amount: r.amount,
+    direction: r.direction,
+    status: r.status,
+    document_ref: r.document_ref,
+    account: { code: r.account_code, name: r.account_name },
+    area: r.cost_center_id ? { id: r.cost_center_id, name: r.cost_center_name } : null,
+    counterparty: r.counterparty_name ? { name: r.counterparty_name } : null,
+  }));
+  return { rows, totalCount: data?.[0]?.total_count ?? 0 };
 }

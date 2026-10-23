@@ -309,6 +309,13 @@ export type Database = {
             foreignKeyName: "bank_statement_lines_matched_transaction_id_fkey"
             columns: ["matched_transaction_id"]
             isOneToOne: false
+            referencedRelation: "v_management_lines"
+            referencedColumns: ["transaction_id"]
+          },
+          {
+            foreignKeyName: "bank_statement_lines_matched_transaction_id_fkey"
+            columns: ["matched_transaction_id"]
+            isOneToOne: false
             referencedRelation: "v_transactions"
             referencedColumns: ["id"]
           },
@@ -468,6 +475,20 @@ export type Database = {
             referencedColumns: ["management_group_id"]
           },
           {
+            foreignKeyName: "chart_of_accounts_management_account_id_fkey"
+            columns: ["management_account_id"]
+            isOneToOne: false
+            referencedRelation: "v_management_lines"
+            referencedColumns: ["management_account_id"]
+          },
+          {
+            foreignKeyName: "chart_of_accounts_management_account_id_fkey"
+            columns: ["management_account_id"]
+            isOneToOne: false
+            referencedRelation: "v_management_lines"
+            referencedColumns: ["management_group_id"]
+          },
+          {
             foreignKeyName: "chart_of_accounts_master_account_id_fkey"
             columns: ["master_account_id"]
             isOneToOne: false
@@ -574,6 +595,20 @@ export type Database = {
             columns: ["management_account_id"]
             isOneToOne: false
             referencedRelation: "v_account_management_map"
+            referencedColumns: ["management_group_id"]
+          },
+          {
+            foreignKeyName: "chart_of_accounts_master_management_account_id_fkey"
+            columns: ["management_account_id"]
+            isOneToOne: false
+            referencedRelation: "v_management_lines"
+            referencedColumns: ["management_account_id"]
+          },
+          {
+            foreignKeyName: "chart_of_accounts_master_management_account_id_fkey"
+            columns: ["management_account_id"]
+            isOneToOne: false
+            referencedRelation: "v_management_lines"
             referencedColumns: ["management_group_id"]
           },
           {
@@ -759,6 +794,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      cost_center_migration_log: {
+        Row: {
+          entity: string
+          entity_id: string
+          id: string
+          migrated_at: string
+          nature_override: Database["public"]["Enums"]["expense_nature"] | null
+          new_cost_center_id: string | null
+          old_cost_center_id: string | null
+        }
+        Insert: {
+          entity: string
+          entity_id: string
+          id?: string
+          migrated_at?: string
+          nature_override?: Database["public"]["Enums"]["expense_nature"] | null
+          new_cost_center_id?: string | null
+          old_cost_center_id?: string | null
+        }
+        Update: {
+          entity?: string
+          entity_id?: string
+          id?: string
+          migrated_at?: string
+          nature_override?: Database["public"]["Enums"]["expense_nature"] | null
+          new_cost_center_id?: string | null
+          old_cost_center_id?: string | null
+        }
+        Relationships: []
       }
       cost_centers: {
         Row: {
@@ -1182,6 +1247,13 @@ export type Database = {
             foreignKeyName: "import_rows_transaction_id_fkey"
             columns: ["transaction_id"]
             isOneToOne: false
+            referencedRelation: "v_management_lines"
+            referencedColumns: ["transaction_id"]
+          },
+          {
+            foreignKeyName: "import_rows_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
             referencedRelation: "v_transactions"
             referencedColumns: ["id"]
           },
@@ -1473,6 +1545,13 @@ export type Database = {
             foreignKeyName: "invoice_jobs_transaction_id_fkey"
             columns: ["transaction_id"]
             isOneToOne: false
+            referencedRelation: "v_management_lines"
+            referencedColumns: ["transaction_id"]
+          },
+          {
+            foreignKeyName: "invoice_jobs_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
             referencedRelation: "v_transactions"
             referencedColumns: ["id"]
           },
@@ -1561,6 +1640,20 @@ export type Database = {
             columns: ["parent_id"]
             isOneToOne: false
             referencedRelation: "v_account_management_map"
+            referencedColumns: ["management_group_id"]
+          },
+          {
+            foreignKeyName: "management_accounts_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "v_management_lines"
+            referencedColumns: ["management_account_id"]
+          },
+          {
+            foreignKeyName: "management_accounts_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "v_management_lines"
             referencedColumns: ["management_group_id"]
           },
         ]
@@ -2264,6 +2357,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_bills"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pagarme_receivables_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_management_lines"
+            referencedColumns: ["transaction_id"]
           },
           {
             foreignKeyName: "pagarme_receivables_transaction_id_fkey"
@@ -3210,6 +3310,13 @@ export type Database = {
             foreignKeyName: "tax_assessment_lines_transaction_id_fkey"
             columns: ["transaction_id"]
             isOneToOne: false
+            referencedRelation: "v_management_lines"
+            referencedColumns: ["transaction_id"]
+          },
+          {
+            foreignKeyName: "tax_assessment_lines_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
             referencedRelation: "v_transactions"
             referencedColumns: ["id"]
           },
@@ -3451,6 +3558,13 @@ export type Database = {
             foreignKeyName: "tax_obligations_transaction_id_fkey"
             columns: ["transaction_id"]
             isOneToOne: false
+            referencedRelation: "v_management_lines"
+            referencedColumns: ["transaction_id"]
+          },
+          {
+            foreignKeyName: "tax_obligations_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
             referencedRelation: "v_transactions"
             referencedColumns: ["id"]
           },
@@ -3657,6 +3771,7 @@ export type Database = {
           installment_total: number | null
           interest_amount: number
           metadata: Json
+          nature_override: Database["public"]["Enums"]["expense_nature"] | null
           notes: string | null
           pagarme_projection_key: string | null
           paid_amount: number
@@ -3694,6 +3809,7 @@ export type Database = {
           installment_total?: number | null
           interest_amount?: number
           metadata?: Json
+          nature_override?: Database["public"]["Enums"]["expense_nature"] | null
           notes?: string | null
           pagarme_projection_key?: string | null
           paid_amount?: number
@@ -3731,6 +3847,7 @@ export type Database = {
           installment_total?: number | null
           interest_amount?: number
           metadata?: Json
+          nature_override?: Database["public"]["Enums"]["expense_nature"] | null
           notes?: string | null
           pagarme_projection_key?: string | null
           paid_amount?: number
@@ -3820,6 +3937,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_bills"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "v_management_lines"
+            referencedColumns: ["transaction_id"]
           },
           {
             foreignKeyName: "transactions_parent_id_fkey"
@@ -4028,6 +4152,13 @@ export type Database = {
             foreignKeyName: "transactions_parent_id_fkey"
             columns: ["parent_id"]
             isOneToOne: false
+            referencedRelation: "v_management_lines"
+            referencedColumns: ["transaction_id"]
+          },
+          {
+            foreignKeyName: "transactions_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
             referencedRelation: "v_transactions"
             referencedColumns: ["id"]
           },
@@ -4054,6 +4185,65 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_management_lines: {
+        Row: {
+          account_id: string | null
+          accrual_date: string | null
+          amount: number | null
+          cash_date: string | null
+          company_id: string | null
+          cost_center_id: string | null
+          counterparty_id: string | null
+          description: string | null
+          direction: Database["public"]["Enums"]["transaction_direction"] | null
+          document_ref: string | null
+          management_account_id: string | null
+          management_group_id: string | null
+          management_kind:
+            | Database["public"]["Enums"]["management_account_kind"]
+            | null
+          nature: Database["public"]["Enums"]["expense_nature"] | null
+          status: Database["public"]["Enums"]["transaction_status"] | null
+          transaction_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "v_account_management_map"
+            referencedColumns: ["account_id"]
+          },
+          {
+            foreignKeyName: "transactions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_cost_center_id_fkey"
+            columns: ["cost_center_id"]
+            isOneToOne: false
+            referencedRelation: "cost_centers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_counterparty_id_fkey"
+            columns: ["counterparty_id"]
+            isOneToOne: false
+            referencedRelation: "counterparties"
             referencedColumns: ["id"]
           },
         ]
@@ -4255,6 +4445,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_bills"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "v_management_lines"
+            referencedColumns: ["transaction_id"]
           },
           {
             foreignKeyName: "transactions_parent_id_fkey"
@@ -4467,6 +4664,13 @@ export type Database = {
             foreignKeyName: "transactions_parent_id_fkey"
             columns: ["parent_id"]
             isOneToOne: false
+            referencedRelation: "v_management_lines"
+            referencedColumns: ["transaction_id"]
+          },
+          {
+            foreignKeyName: "transactions_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
             referencedRelation: "v_transactions"
             referencedColumns: ["id"]
           },
@@ -4481,6 +4685,15 @@ export type Database = {
       }
     }
     Functions: {
+      _clause: {
+        Args: {
+          p_area_ids: string[]
+          p_include_no_area: boolean
+          p_management_ids: string[]
+          p_nature: string
+        }
+        Returns: Json
+      }
       _find_company_account: {
         Args: { p_code: string; p_company_id: string }
         Returns: string
@@ -4916,6 +5129,7 @@ export type Database = {
           installment_total: number | null
           interest_amount: number
           metadata: Json
+          nature_override: Database["public"]["Enums"]["expense_nature"] | null
           notes: string | null
           pagarme_projection_key: string | null
           paid_amount: number
@@ -4971,6 +5185,7 @@ export type Database = {
           installment_total: number | null
           interest_amount: number
           metadata: Json
+          nature_override: Database["public"]["Enums"]["expense_nature"] | null
           notes: string | null
           pagarme_projection_key: string | null
           paid_amount: number
@@ -5290,6 +5505,50 @@ export type Database = {
         }
         Returns: boolean
       }
+      management_line_transactions: {
+        Args: {
+          p_basis: Database["public"]["Enums"]["accounting_basis"]
+          p_company_ids?: string[]
+          p_from: string
+          p_keys: Json
+          p_limit?: number
+          p_to: string
+        }
+        Returns: {
+          account_code: string
+          account_name: string
+          accrual_date: string
+          amount: number
+          cash_date: string
+          cost_center_id: string
+          cost_center_name: string
+          counterparty_name: string
+          description: string
+          direction: Database["public"]["Enums"]["transaction_direction"]
+          document_ref: string
+          id: string
+          status: Database["public"]["Enums"]["transaction_status"]
+          total_count: number
+        }[]
+      }
+      management_monthly_series_multi: {
+        Args: {
+          p_basis?: Database["public"]["Enums"]["accounting_basis"]
+          p_company_ids?: string[]
+          p_from: string
+          p_to: string
+        }
+        Returns: {
+          cost_center_id: string
+          expense: number
+          management_account_id: string
+          management_group_id: string
+          month: string
+          nature: Database["public"]["Enums"]["expense_nature"]
+          revenue: number
+          transaction_count: number
+        }[]
+      }
       mark_overdue_obligations: {
         Args: { p_company_id: string }
         Returns: number
@@ -5561,6 +5820,7 @@ export type Database = {
           installment_total: number | null
           interest_amount: number
           metadata: Json
+          nature_override: Database["public"]["Enums"]["expense_nature"] | null
           notes: string | null
           pagarme_projection_key: string | null
           paid_amount: number
@@ -5622,9 +5882,21 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      restructure_cost_centers_into_areas: {
+        Args: { p_organization_id: string }
+        Returns: Json
+      }
       resync_recurring_future: {
         Args: { p_template_id: string }
         Returns: number
+      }
+      rewrite_balance_model_lines: {
+        Args: {
+          p_company_ids: string[]
+          p_lines: Json
+          p_organization_id: string
+        }
+        Returns: Json
       }
       rotate_account_webhook_secret: {
         Args: { p_account_id: string }

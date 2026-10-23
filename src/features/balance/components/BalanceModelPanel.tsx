@@ -1,7 +1,7 @@
 /**
  * Painel de edição do modelo: a lista ordenada de linhas, com os avisos que não
- * impedem o relatório de rodar mas mudam o número (centro repetido, fórmula
- * quebrada, centro que não existe mais).
+ * impedem o relatório de rodar mas mudam o número (duas linhas somando o mesmo
+ * lançamento, fórmula quebrada, item ou área que não existe mais).
  */
 import * as React from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, Pencil, Plus } from "lucide-react";
@@ -10,19 +10,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 
-import { analyzeModel } from "../compute";
+import { analyzeModel, type MonthlySeriesRow } from "../compute";
 import { LINE_KIND_LABELS, MEASURE_LABELS, type BalanceLine } from "../schema";
 import { BalanceLineEditor } from "./BalanceLineEditor";
-
-/** A central de custos é global, então uma opção é um centro e ponto. */
-interface CostCenterOption {
-  id: string;
-  name: string;
-}
+import { describeFilterLine, knownReferenceIds, type BalanceOptions } from "./options";
 
 interface Props {
   lines: BalanceLine[];
-  costCenters: CostCenterOption[];
+  /** Série do período — é nela que se vê se duas linhas somam o mesmo lançamento. */
+  series: readonly MonthlySeriesRow[];
+  options: BalanceOptions;
   onChange: (lines: BalanceLine[]) => void;
 }
 
@@ -30,16 +27,12 @@ interface Props {
 function describeLine(
   line: BalanceLine,
   lines: readonly BalanceLine[],
-  costCenters: readonly CostCenterOption[],
+  options: BalanceOptions,
 ): string {
   const labelOf = (id: string) => lines.find((l) => l.id === id)?.label ?? "?";
 
-  if (line.kind === "cost_centers") {
-    if (line.costCenterIds.length === 0) return "Nenhum centro de custo";
-    const names = line.costCenterIds.map(
-      (id) => costCenters.find((cc) => cc.id === id)?.name ?? "centro removido",
-    );
-    return `${MEASURE_LABELS[line.measure]} · ${names.join(", ")}`;
+  if (line.kind === "filter") {
+    return `${MEASURE_LABELS[line.measure]} · ${describeFilterLine(line, options)}`;
   }
   if (line.kind === "formula") {
     if (line.terms.length === 0) return "Sem parcelas";
@@ -62,21 +55,16 @@ function move(lines: BalanceLine[], index: number, delta: number): BalanceLine[]
   return next;
 }
 
-export function BalanceModelPanel({ lines, costCenters, onChange }: Props) {
+export function BalanceModelPanel({ lines, series, options, onChange }: Props) {
   const [editing, setEditing] = React.useState<BalanceLine | null>(null);
   const [editorOpen, setEditorOpen] = React.useState(false);
 
   const issues = React.useMemo(
-    () =>
-      analyzeModel(
-        lines,
-        costCenters.map((cc) => cc.id),
-      ),
-    [lines, costCenters],
+    () => analyzeModel(lines, series, knownReferenceIds(options)),
+    [lines, series, options],
   );
 
-  const nameOfCostCenter = (id: string) =>
-    costCenters.find((cc) => cc.id === id)?.name ?? id.slice(0, 8);
+  const labelOfLine = (id: string) => lines.find((l) => l.id === id)?.label ?? id;
 
   const openEditor = (line: BalanceLine | null) => {
     setEditing(line);
@@ -106,21 +94,23 @@ export function BalanceModelPanel({ lines, costCenters, onChange }: Props) {
         </Button>
       </div>
 
-      {(issues.duplicatedCostCenterIds.length > 0 ||
+      {(issues.overlappingLineIds.length > 0 ||
         issues.brokenLineIds.length > 0 ||
-        issues.unknownCostCenterIds.length > 0) && (
+        issues.unknownReferenceLineIds.length > 0) && (
         <div className="space-y-1 rounded-[var(--radius-md)] border border-expense/40 bg-expense/5 p-3">
-          {issues.duplicatedCostCenterIds.length > 0 && (
+          {issues.overlappingLineIds.length > 0 && (
             <p className="text-2xs flex items-start gap-1.5 text-expense">
               <AlertTriangle className="mt-px size-3 shrink-0" />
-              Em mais de uma linha, então entra duas vezes no total:{" "}
-              {issues.duplicatedCostCenterIds.map(nameOfCostCenter).join(", ")}.
+              Estas linhas somam os mesmos lançamentos, que entram duas vezes no total:{" "}
+              {issues.overlappingLineIds.map(labelOfLine).join(", ")}.
             </p>
           )}
-          {issues.unknownCostCenterIds.length > 0 && (
+          {issues.unknownReferenceLineIds.length > 0 && (
             <p className="text-2xs flex items-start gap-1.5 text-expense">
               <AlertTriangle className="mt-px size-3 shrink-0" />
-              Centro de custo referenciado não existe mais na empresa — a linha ignora esse trecho.
+              Item gerencial ou área que não existe mais:{" "}
+              {issues.unknownReferenceLineIds.map(labelOfLine).join(", ")} — a linha ignora esse
+              trecho.
             </p>
           )}
           {issues.brokenLineIds.length > 0 && (
@@ -171,7 +161,7 @@ export function BalanceModelPanel({ lines, costCenters, onChange }: Props) {
                   <Badge tone="default">{LINE_KIND_LABELS[line.kind]}</Badge>
                 </div>
                 <p className="text-2xs truncate text-text-muted">
-                  {describeLine(line, lines, costCenters)}
+                  {describeLine(line, lines, options)}
                 </p>
               </div>
 
@@ -193,7 +183,7 @@ export function BalanceModelPanel({ lines, costCenters, onChange }: Props) {
         onOpenChange={setEditorOpen}
         line={editing}
         otherLines={lines.filter((l) => l.id !== editing?.id)}
-        costCenters={costCenters}
+        options={options}
         onSubmit={upsert}
         onDelete={remove}
       />

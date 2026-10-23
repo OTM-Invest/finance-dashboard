@@ -166,7 +166,7 @@ export function BulkEditDrawer({ open, onOpenChange, ids, companyId, onApplied }
               </Select>
             </Field>
 
-            <Field label="Centro de custo" htmlFor="bulk-cc">
+            <Field label="Área" htmlFor="bulk-cc">
               <Select value={costCenterId} onValueChange={setCostCenterId}>
                 <SelectTrigger id="bulk-cc">
                   <SelectValue />

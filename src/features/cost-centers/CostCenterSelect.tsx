@@ -17,12 +17,7 @@ interface Props {
 
 const NONE = "__none__";
 
-export function CostCenterSelect({
-  value,
-  onChange,
-  id,
-  placeholder = "Sem centro de custo",
-}: Props) {
+export function CostCenterSelect({ value, onChange, id, placeholder = "Sem área" }: Props) {
   // A central é global: as opções não dependem da empresa do lançamento.
   const { data: costCenters = [], isLoading } = useCostCenters();
   const active = costCenters.filter((c) => c.is_active);
