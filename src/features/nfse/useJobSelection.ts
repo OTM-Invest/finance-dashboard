@@ -1,16 +1,23 @@
 import * as React from "react";
 
 import type { InvoiceJob } from "./api";
+import { isRefundHeld } from "./constants";
 
 /**
- * Seleção de notas para emissão em lote. Só `pending_review` é selecionável.
+ * Seleção de notas para emissão em lote. Só `pending_review` é selecionável —
+ * e nota de venda estornada não entra na seleção, nem pelo "selecionar todas".
+ * É justamente o lote que torna o estorno perigoso: em produção havia 134 notas
+ * de venda estornada na fila (R$ 188.814,00) que um clique só emitiria.
+ *
  * A seleção é por id e persiste entre páginas; `headerChecked` reflete o estado
  * do "selecionar todas" da página atual (com estado indeterminado parcial).
  */
 export function useJobSelection(jobs: InvoiceJob[]) {
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
 
-  const pendingIds = jobs.filter((j) => j.status === "pending_review").map((j) => j.id);
+  const pendingIds = jobs
+    .filter((j) => j.status === "pending_review" && !isRefundHeld(j))
+    .map((j) => j.id);
   const selectedOnPage = pendingIds.filter((id) => selected.has(id)).length;
   const headerChecked: boolean | "indeterminate" =
     pendingIds.length > 0 && selectedOnPage === pendingIds.length

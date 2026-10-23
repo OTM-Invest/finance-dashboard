@@ -8,7 +8,10 @@
  *     cobrança, comprador, assinatura e o cronograma de recebíveis. Cobre também
  *     eventos que não são dinheiro (cobrança recusada = taxa de aprovação) e os
  *     que mudam dinheiro já pago (estorno/chargeback).
- *  2. FISCAL — inalterado: apenas `charge.paid` explode em `invoice_jobs`
+ *  2. ESTORNO -> FISCAL (`resolveRefundState` em `_shared/pagarme/refunds.ts`):
+ *     o caminho de volta. Venda estornada marca as notas daquela cobrança e tira
+ *     da fila a que ainda não foi emitida (`apply_charge_refund_to_jobs`).
+ *  3. FISCAL — inalterado: apenas `charge.paid` explode em `invoice_jobs`
  *     (COM split -> uma nota por empresa-recebedor; SEM split -> uma da empresa
  *     dona). Essa invariante tem teste dedicado em `events.test.ts`.
  *
@@ -41,6 +44,7 @@ import { explodeChargePaid } from "../_shared/nfse/split.ts";
 import type { NfseAmbiente, PagarmeAccount } from "../_shared/nfse/types.ts";
 import { parseChargeRecord, parseCustomerRecord } from "../_shared/pagarme/charges.ts";
 import { classifyEvent } from "../_shared/pagarme/events.ts";
+import { resolveRefundState } from "../_shared/pagarme/refunds.ts";
 import { parseSubscriptionRecord } from "../_shared/pagarme/subscriptions.ts";
 import {
   loadLedgerContext,
@@ -200,7 +204,29 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   // ---------------------------------------------------------------------------
-  // 3) FISCAL — só `charge.paid` emite nota (invariante coberta por teste)
+  // 3) ESTORNO -> ESTEIRA FISCAL
+  //
+  // O caminho de volta do `charge.paid`: venda estornada não pode virar nota. Fica
+  // FORA do bloco do ledger de propósito — vale para sandbox (onde a nota de teste
+  // também não deve sair) e precisa rodar mesmo com o ledger indisponível, porque
+  // emitir NFS-e é irreversível e desfazer custa cancelamento na prefeitura.
+  // ---------------------------------------------------------------------------
+  const refundState = resolveRefundState({
+    eventType,
+    chargeStatus: typeof data.status === "string" ? data.status : null,
+  });
+  if (refundState !== "none" && typeof data.id === "string") {
+    const { data: touched, error: refundErr } = await supabase.rpc("apply_charge_refund_to_jobs", {
+      p_charge_id: data.id,
+      p_state: refundState,
+    });
+    ledger.refundState = refundState;
+    if (refundErr) ledger.refundError = refundErr.message;
+    else ledger.refundJobs = touched;
+  }
+
+  // ---------------------------------------------------------------------------
+  // 4) FISCAL — só `charge.paid` emite nota (invariante coberta por teste)
   // ---------------------------------------------------------------------------
   if (!action.explodeFiscal) {
     await markProcessed(supabase, eventId);

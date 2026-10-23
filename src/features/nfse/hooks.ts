@@ -19,6 +19,7 @@ import {
   fetchRecipients,
   fetchWebhookEvents,
   reemitAuthorizedToProducao,
+  releaseInvoiceJobForEmission,
   requeueInvoiceJob,
   rotateWebhookSecret,
   saveTomadorReview,
@@ -27,6 +28,7 @@ import {
   updateConnection,
   updateRecipient,
   upsertFiscalSettings,
+  voidInvoiceJob,
   type CreateBackfillRunInput,
   type InvoiceJobFilters,
   type SandboxChargeInput,
@@ -164,7 +166,7 @@ export function useInvoiceJobs(filters: InvoiceJobFilters, opts?: { refetchInter
 export function useApproveInvoiceJob() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, userId }: { id: string; userId: string }) => approveInvoiceJob(id, userId),
+    mutationFn: (id: string) => approveInvoiceJob(id),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["nfse", "jobs"] }),
   });
 }
@@ -172,8 +174,26 @@ export function useApproveInvoiceJob() {
 export function useApproveInvoiceJobs() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ ids, userId }: { ids: string[]; userId: string }) =>
-      approveInvoiceJobs(ids, userId),
+    mutationFn: (ids: string[]) => approveInvoiceJobs(ids),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["nfse", "jobs"] }),
+  });
+}
+
+/** Emitir mesmo com estorno (decisão humana registrada). */
+export function useReleaseInvoiceJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, motivo }: { id: string; motivo: string }) =>
+      releaseInvoiceJobForEmission(id, motivo),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["nfse", "jobs"] }),
+  });
+}
+
+/** Descartar a nota antes de ela existir na prefeitura. */
+export function useVoidInvoiceJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, motivo }: { id: string; motivo: string }) => voidInvoiceJob(id, motivo),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["nfse", "jobs"] }),
   });
 }

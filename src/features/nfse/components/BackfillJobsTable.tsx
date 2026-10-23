@@ -13,13 +13,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAuth } from "@/features/auth/AuthProvider";
 import { useCompanyScope } from "@/features/companies/CompanyContext";
 import { formatDate } from "@/lib/dates";
 import { formatBRL } from "@/lib/format";
 
 import type { InvoiceJob, InvoiceJobFilters } from "../api";
-import { AMBIENTE_META, JOB_STATUS_FILTERS, JOB_STATUS_META } from "../constants";
+import {
+  AMBIENTE_META,
+  isRefundHeld,
+  JOB_STATUS_FILTERS,
+  JOB_STATUS_META,
+  REFUND_STATE_META,
+} from "../constants";
 import { useApproveInvoiceJobs, useConnections, useInvoiceJobs } from "../hooks";
 import { useJobSelection } from "../useJobSelection";
 import { InvoiceJobDrawer } from "./InvoiceJobDrawer";
@@ -33,7 +38,6 @@ interface Props {
 
 /** Notas retroativas (source=backfill) com filtros, paginação e emissão em lote. */
 export function BackfillJobsTable({ polling }: Props) {
-  const { user } = useAuth();
   const { data: connections = [] } = useConnections();
   const approveJobs = useApproveInvoiceJobs();
 
@@ -74,16 +78,18 @@ export function BackfillJobsTable({ polling }: Props) {
   }, [statusFilter, accountId, companyIds, clear]);
 
   function emitSelected() {
-    approveJobs.mutate(
-      { ids: [...selected], userId: user?.id ?? "" },
-      {
-        onSuccess: (n) => {
-          toast.success(`${n} nota(s) enviadas para a fila de emissão.`);
-          clear();
-        },
-        onError: (e) => toast.error(e instanceof Error ? e.message : "Falha ao emitir."),
+    approveJobs.mutate([...selected], {
+      onSuccess: ({ approved, blocked }) => {
+        toast.success(`${approved} nota(s) enviadas para a fila de emissão.`);
+        if (blocked > 0) {
+          toast.warning(
+            `${blocked} nota(s) retidas: a venda foi estornada. Abra cada uma para liberar ou descartar.`,
+          );
+        }
+        clear();
       },
-    );
+      onError: (e) => toast.error(e instanceof Error ? e.message : "Falha ao emitir."),
+    });
   }
 
   const firstRow = total === 0 ? 0 : page * PAGE_SIZE + 1;
@@ -165,7 +171,9 @@ export function BackfillJobsTable({ polling }: Props) {
                   label: job.status,
                   tone: "default" as const,
                 };
-                const selectable = job.status === "pending_review";
+                const retida = isRefundHeld(job);
+                const estorno = retida ? REFUND_STATE_META[job.refund_state] : null;
+                const selectable = job.status === "pending_review" && !retida;
                 return (
                   <tr key={job.id} className="hover:bg-surface-2/60">
                     <td className="px-3 py-2.5">
@@ -173,7 +181,7 @@ export function BackfillJobsTable({ polling }: Props) {
                         checked={selected.has(job.id)}
                         disabled={!selectable}
                         onCheckedChange={() => toggle(job.id)}
-                        aria-label="Selecionar nota"
+                        aria-label={retida ? "Nota retida: venda estornada" : "Selecionar nota"}
                       />
                     </td>
                     <td className="cursor-pointer px-3 py-2.5" onClick={() => setDetail(job)}>
@@ -198,7 +206,10 @@ export function BackfillJobsTable({ polling }: Props) {
                       })()}
                     </td>
                     <td className="px-3 py-2.5">
-                      <Badge tone={status.tone}>{status.label}</Badge>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <Badge tone={status.tone}>{status.label}</Badge>
+                        {estorno ? <Badge tone={estorno.tone}>{estorno.label}</Badge> : null}
+                      </div>
                     </td>
                     <td className="px-3 py-2.5 font-mono text-xs whitespace-nowrap text-text-muted">
                       {formatDate(job.created_at)}

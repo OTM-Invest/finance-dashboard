@@ -1,5 +1,13 @@
 import * as React from "react";
-import { CheckCircle2, Download, Loader2, Pencil, RefreshCw } from "lucide-react";
+import {
+  AlertTriangle,
+  Ban,
+  CheckCircle2,
+  Download,
+  Loader2,
+  Pencil,
+  RefreshCw,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +21,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { usePermissions } from "@/features/auth/usePermissions";
 import { formatDate } from "@/lib/dates";
@@ -20,8 +29,13 @@ import { formatDocument } from "@/lib/document";
 import { formatBRL } from "@/lib/format";
 
 import { nfseFileUrl, TOMADOR_EDITABLE_STATUSES, type InvoiceJob } from "../api";
-import { DOCUMENT_TYPE_META, JOB_STATUS_META } from "../constants";
-import { useApproveInvoiceJob, useRequeueInvoiceJob } from "../hooks";
+import { DOCUMENT_TYPE_META, isRefundHeld, JOB_STATUS_META, REFUND_STATE_META } from "../constants";
+import {
+  useApproveInvoiceJob,
+  useReleaseInvoiceJob,
+  useRequeueInvoiceJob,
+  useVoidInvoiceJob,
+} from "../hooks";
 import { deriveTomadorEndereco, ENDERECO_FIELD_LABELS, hasEnderecoOverride } from "../tomador";
 import { TomadorReviewForm } from "./TomadorReviewForm";
 
@@ -52,8 +66,12 @@ export function InvoiceJobDrawer({ open, onOpenChange, job }: Props) {
   const metadata = (job.metadata ?? {}) as Record<string, unknown>;
   const splitSource = metadata.splitSource as string | undefined;
   const payablesDivergence = metadata.payablesDivergence === true;
-  const canApprove = job.status === "pending_review";
-  const canRequeue = job.status === "rejected" || job.status === "failed";
+  // nota retida pelo guardrail de estorno: nem aprovar nem reenviar, até alguém
+  // decidir. O banco recusaria de qualquer forma (trigger + RPC) — aqui a tela
+  // deixa de oferecer o botão e mostra as duas saídas reais.
+  const retida = isRefundHeld(job);
+  const canApprove = job.status === "pending_review" && !retida;
+  const canRequeue = (job.status === "rejected" || job.status === "failed") && !retida;
   const { endereco, missing: missingEndereco } = deriveTomadorEndereco(job.tomador_endereco);
   const docDigits = (job.tomador_documento ?? "").replace(/\D/gu, "").length;
   const missingTomador = [
@@ -117,6 +135,10 @@ export function InvoiceJobDrawer({ open, onOpenChange, job }: Props) {
               />
             )}
           </Section>
+
+          {retida && (
+            <RefundDecision job={job} canDecide={canEdit} onDone={() => onOpenChange(false)} />
+          )}
 
           {payablesDivergence && (
             <p className="text-2xs rounded-[var(--radius-sm)] bg-warning-soft p-2 text-warning">
@@ -264,17 +286,13 @@ export function InvoiceJobDrawer({ open, onOpenChange, job }: Props) {
             <Button
               disabled={approve.isPending || !user}
               onClick={() => {
-                if (!user) return;
-                approve.mutate(
-                  { id: job.id, userId: user.id },
-                  {
-                    onSuccess: () => {
-                      toast.success("Nota aprovada — enviada para a fila");
-                      onOpenChange(false);
-                    },
-                    onError: (err) => toast.error("Erro ao aprovar", { description: err.message }),
+                approve.mutate(job.id, {
+                  onSuccess: () => {
+                    toast.success("Nota aprovada — enviada para a fila");
+                    onOpenChange(false);
                   },
-                );
+                  onError: (err) => toast.error("Erro ao aprovar", { description: err.message }),
+                });
               }}
             >
               {approve.isPending ? (
@@ -326,6 +344,121 @@ function enderecoLinha(endereco: {
 }): string {
   const rua = [endereco.logradouro, endereco.numero].filter(Boolean).join(", ");
   return [rua, endereco.complemento].filter(Boolean).join(" - ") || "—";
+}
+
+const MOTIVO_MIN = 10;
+
+/**
+ * As duas saídas de uma nota retida por estorno — e só elas.
+ *
+ * Não há "aprovar assim mesmo" silencioso: emitir uma nota cuja venda voltou é
+ * documentar serviço que pode não ter existido, e descartar uma que era devida
+ * apaga receita. Ambas pedem motivo escrito, que fica no metadata do job com
+ * autor e horário, porque a pergunta do contador vem meses depois.
+ *
+ * O caso que justifica "emitir mesmo assim" é o chargeback: o serviço foi
+ * prestado e o cliente contestou — a nota continua devida e a perda é
+ * inadimplência, não desfazimento da venda.
+ */
+function RefundDecision({
+  job,
+  canDecide,
+  onDone,
+}: {
+  job: InvoiceJob;
+  canDecide: boolean;
+  onDone: () => void;
+}) {
+  const release = useReleaseInvoiceJob();
+  const voidJob = useVoidInvoiceJob();
+  const [acao, setAcao] = React.useState<"release" | "void" | null>(null);
+  const [motivo, setMotivo] = React.useState("");
+
+  const meta = REFUND_STATE_META[job.refund_state];
+  if (!meta) return null;
+
+  const pendente = release.isPending || voidJob.isPending;
+  const motivoOk = motivo.trim().length >= MOTIVO_MIN;
+
+  function confirmar() {
+    if (!acao || !motivoOk) return;
+    const mutation = acao === "release" ? release : voidJob;
+    const sucesso = acao === "release" ? "Nota liberada e enviada para a fila" : "Nota descartada";
+    mutation.mutate(
+      { id: job.id, motivo: motivo.trim() },
+      {
+        onSuccess: () => {
+          toast.success(sucesso);
+          onDone();
+        },
+        onError: (err) => toast.error("Não foi possível concluir", { description: err.message }),
+      },
+    );
+  }
+
+  return (
+    <div className="space-y-3 rounded-[var(--radius-md)] border border-expense/40 bg-expense-soft p-3">
+      <div className="flex items-center gap-2">
+        <AlertTriangle className="size-4 shrink-0 text-expense" />
+        <Badge tone={meta.tone}>{meta.label}</Badge>
+        {job.refund_detected_at && (
+          <span className="text-2xs text-text-muted">
+            detectado em {formatDate(job.refund_detected_at)}
+          </span>
+        )}
+      </div>
+      <p className="text-xs text-text-muted">{meta.descricao}</p>
+
+      {!canDecide ? (
+        <p className="text-2xs text-text-subtle">
+          Esta nota está retida. Você não tem permissão de escrita nesta empresa para decidir.
+        </p>
+      ) : acao === null ? (
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" onClick={() => setAcao("release")}>
+            Emitir mesmo assim
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setAcao("void")}>
+            <Ban className="size-3.5" /> Descartar nota
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <Textarea
+            rows={2}
+            autoFocus
+            value={motivo}
+            onChange={(e) => setMotivo(e.target.value)}
+            placeholder={
+              acao === "release"
+                ? "Por que esta nota é devida apesar do estorno?"
+                : "Por que esta nota não deve existir?"
+            }
+          />
+          <div className="flex items-center gap-2">
+            <Button size="sm" disabled={!motivoOk || pendente} onClick={confirmar}>
+              {pendente ? <Loader2 className="size-4 animate-spin" /> : null}
+              {acao === "release" ? "Confirmar emissão" : "Confirmar descarte"}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={pendente}
+              onClick={() => {
+                setAcao(null);
+                setMotivo("");
+              }}
+            >
+              Cancelar
+            </Button>
+            <span className="text-2xs text-text-subtle">
+              mínimo {MOTIVO_MIN} caracteres — fica no histórico da nota
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function Section({

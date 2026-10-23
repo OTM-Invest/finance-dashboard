@@ -336,6 +336,27 @@ fila por status na `invoice_jobs` + pg_cron + Vault + Storage); gestão pela UI 
 por webhook **ou** reconcile → XML/DANFSe no Storage), gerido pela UI. Remoto sincronizado.
 Pendências (não bloqueiam): UI de revisão de endereço, go-live de produção.
 
+⚠️ **Venda estornada não vira nota.** A esteira é de mão dupla desde
+`…_nfse_guardrail_estorno`: estorno marca `invoice_jobs.refund_state` e tira da fila o que
+ainda não foi emitido (total → `voided`; parcial/chargeback → retido para decisão humana,
+com motivo escrito). A guarda está em TRÊS camadas — trigger no banco, RPC
+`approve_invoice_jobs` e `claim_nfse_jobs` — porque emitir NFS-e é irreversível e desfazer
+custa cancelamento na prefeitura.
+
+⚠️ **O sinal de estorno é o par (evento, status da cobrança), NUNCA o valor.**
+`charge.refunded` → `canceled` = total; `charge.partial_canceled` → segue `paid` = parcial;
+`charge.chargedback` = chargeback. `pagarme_charges.refunded_amount` é agregado de payables
+e chega atrasado ou nunca (R$ 34 mil de diferença em produção) — usá-lo como gate deixaria
+passar nota de venda estornada. Regra única em `_shared/pagarme/refunds.ts`, com teste.
+
+⚠️ **`voided` ≠ `cancelled`.** `voided` é a nota descartada antes de existir; `cancelled` é
+nota autorizada e cancelada na prefeitura — ato definitivo, com justificativa de 15–255
+caracteres e reflexo na apuração do ISS. Confundir os dois falseia obrigação acessória.
+
+⚠️ **Chargeback não é estorno.** O serviço foi prestado e o cliente contestou: é perda, não
+desfazimento da venda, e a nota pode continuar devida. Por isso ele retém a nota em vez de
+descartá-la — a decisão é da contabilidade, não da automação.
+
 ## MCP de Insights — conversar com o financeiro por IA
 
 Servidor **MCP somente-leitura** que expõe o financeiro a qualquer IA (claude.ai,

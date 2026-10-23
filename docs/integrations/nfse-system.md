@@ -245,6 +245,65 @@ protegidas por **segredo compartilhado** na URL/header. Config em `config.toml`.
 
 ---
 
+## 5.1 Guardrail de estorno — o caminho de volta
+
+A esteira nasceu de mão única (`charge.paid` → nota) e nenhum evento de estorno tocava
+`invoice_jobs`. Em produção, antes da correção (23/10/2026):
+
+- **63 NFS-e autorizadas** de cobranças estornadas — R$ 111.530,00. Em **19** delas
+  (R$ 24.309,60) o estorno já estava no banco quando alguém aprovou a nota;
+- **134 jobs em `pending_review`** de venda estornada — R$ 188.814,00 que um "selecionar
+  todas" emitiria de uma vez.
+
+O caso evitável é o comum, porque a OTM dá **7 dias de garantia** e espera o prazo antes
+de emitir: o estorno tende a chegar _antes_ da emissão.
+
+### Como o estado é decidido
+
+| evento                    | status resultante | `refund_state` | o que acontece com a nota na fila |
+| ------------------------- | ----------------- | -------------- | --------------------------------- |
+| `charge.refunded`         | `canceled`        | `full`         | `voided` — descartada             |
+| `charge.partial_canceled` | segue `paid`      | `partial`      | volta a `pending_review`, retida  |
+| `charge.chargedback`      | `chargedback`     | `chargeback`   | volta a `pending_review`, retida  |
+
+⚠️ **Nunca pelo valor.** `pagarme_charges.refunded_amount` é agregado dos payables e
+chega atrasado ou nunca — 34 das 93 cobranças com `charge.refunded` apareceriam como
+"parcial". A regra pura está em `_shared/pagarme/refunds.ts` (testada) e é a mesma que o
+SQL usa no backfill.
+
+### Onde a guarda mora (três camadas)
+
+1. **`apply_charge_refund_to_jobs`** (service_role) — chamada pelo `pagarme-webhook` em
+   tempo real e por `writeCharge` em todo ingest (sync/backfill), que é a rede para
+   webhook perdido: `canceled`/`chargedback` vêm no próprio objeto da venda. Marca o job
+   e tira da fila o que ainda não saiu. Só escala — nunca rebaixa o estado.
+2. **`trg_invoice_jobs_guard_refund`** — trigger que recusa qualquer transição para
+   `approved`/`queued`/`submitting` com estorno não liberado. Cobre os caminhos laterais
+   (retry de nota rejeitada, revisão de tomador com reenvio, script de correção).
+3. **`claim_nfse_jobs`** — o worker reconfere no último metro, fechando a janela entre
+   aprovar e postar no Focus.
+
+Mais `approve_invoice_jobs` (RPC `security invoker` que substituiu o `update` direto da
+tela) devolvendo `approved`/`blocked`, para a interface dizer quantas ficaram e por quê.
+
+### As duas saídas de uma nota retida
+
+- `release_invoice_job_for_emission(id, motivo)` — "a nota é devida mesmo assim" (o caso
+  do chargeback: serviço prestado, cliente contestou). Libera e enfileira no mesmo ato.
+- `void_invoice_job(id, motivo)` — descarta. Só antes do Focus: nota autorizada se
+  cancela na prefeitura (`nfse-cancel`), não aqui.
+
+Ambas exigem motivo de 10+ caracteres, gravado em `metadata` com autor e horário.
+
+⚠️ **`voided` ≠ `cancelled`** — a primeira nunca existiu na prefeitura; a segunda é
+obrigação acessória com reflexo no ISS. A tela mostra "Descartada" e "Cancelada".
+
+**Fora do escopo desta correção** (decisão caso a caso, não automação): as 63 notas já
+autorizadas com estorno. Dentro da competência cabe cancelamento; fora, substituição ou
+dedução de receita — ver as naturezas em `REFUND_STATE_META`.
+
+---
+
 ## 6. Automação (pg_cron + pg_net)
 
 - `nfse-drain` — `* * * * *` (1 min): `select nfse_cron_invoke('drain')`.

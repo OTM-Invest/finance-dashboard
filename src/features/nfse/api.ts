@@ -378,17 +378,48 @@ export async function fetchAllInvoiceJobs(filters: InvoiceJobFilters): Promise<I
   return all;
 }
 
-/** Aprova em lote por ids (seleção da tabela): pending_review -> queued. Retorna quantos. */
-export async function approveInvoiceJobs(ids: string[], userId: string): Promise<number> {
-  if (ids.length === 0) return 0;
-  const { data, error } = await supabase
-    .from("invoice_jobs")
-    .update({ status: "queued", approved_by: userId, approved_at: new Date().toISOString() })
-    .in("id", ids)
-    .eq("status", "pending_review")
-    .select("id");
+/** Resultado da aprovação: o que foi para a fila e o que o guardrail reteve. */
+export interface ApproveResult {
+  approved: number;
+  blocked: number;
+}
+
+/**
+ * Aprova em lote por ids (seleção da tabela): pending_review -> queued.
+ *
+ * Passa por RPC e não por `update` direto porque a nota de venda estornada é
+ * PULADA, não aprovada — e um update devolveria só "N linhas", sem distinguir
+ * o que foi retido do que nem estava pendente. A RPC devolve os dois números
+ * para a tela poder dizer quantas ficaram e por quê.
+ */
+export async function approveInvoiceJobs(ids: string[]): Promise<ApproveResult> {
+  if (ids.length === 0) return { approved: 0, blocked: 0 };
+  const { data, error } = await supabase.rpc("approve_invoice_jobs", { p_ids: ids });
   if (error) throw error;
-  return data?.length ?? 0;
+  const row = Array.isArray(data) ? data[0] : data;
+  return { approved: row?.approved ?? 0, blocked: row?.blocked ?? 0 };
+}
+
+/**
+ * "A venda teve estorno, mas a nota é devida mesmo assim" — o caso do
+ * chargeback, em que o serviço foi prestado e o cliente contestou. Libera e
+ * manda para a fila no mesmo ato; o motivo fica no metadata.
+ */
+export async function releaseInvoiceJobForEmission(id: string, motivo: string): Promise<void> {
+  const { error } = await supabase.rpc("release_invoice_job_for_emission", {
+    p_id: id,
+    p_motivo: motivo,
+  });
+  if (error) throw error;
+}
+
+/**
+ * Descarta uma nota que nunca deve existir. Só antes do Focus: nota autorizada
+ * se cancela na prefeitura (`nfse-cancel`), não aqui.
+ */
+export async function voidInvoiceJob(id: string, motivo: string): Promise<void> {
+  const { error } = await supabase.rpc("void_invoice_job", { p_id: id, p_motivo: motivo });
+  if (error) throw error;
 }
 
 /**
@@ -405,13 +436,13 @@ export async function reemitAuthorizedToProducao(accountId: string): Promise<num
 }
 
 /** Aprova um job em revisão manual: vai para a fila de emissão. */
-export async function approveInvoiceJob(id: string, userId: string): Promise<void> {
-  const { error } = await supabase
-    .from("invoice_jobs")
-    .update({ status: "queued", approved_by: userId, approved_at: new Date().toISOString() })
-    .eq("id", id)
-    .eq("status", "pending_review");
-  if (error) throw error;
+export async function approveInvoiceJob(id: string): Promise<void> {
+  const { blocked } = await approveInvoiceJobs([id]);
+  if (blocked > 0) {
+    throw new Error(
+      "Esta nota está retida: a venda teve estorno. Libere explicitamente ou descarte a nota.",
+    );
+  }
 }
 
 /** Recoloca um job com erro (rejected/failed) na fila, zerando as tentativas. */
