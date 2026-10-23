@@ -233,6 +233,12 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
+# Login do painel é por código (signInWithOtp + verifyOtp): o template de magic link
+# precisa trazer {{ .Token }}. No remoto, o mesmo HTML vai em Auth → Email Templates.
+[auth.email.template.magic_link]
+subject = "Seu código de acesso ao Finance Dashboard"
+content_path = "./supabase/templates/magic_link.html"
+
 # Uncomment to customize email template
 # [auth.email.template.invite]
 # subject = "You have been invited"
