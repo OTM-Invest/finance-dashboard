@@ -26,6 +26,7 @@ import {
   applyFocusDocument,
   FOCUS_BASE,
   hasFocusError,
+  shouldRecheckFiles,
   type FocusJobRef,
 } from "../_shared/nfse/focus.ts";
 import { buildNfsePayload } from "../_shared/nfse/payload.ts";
@@ -272,6 +273,9 @@ async function emitJob(
     company_id: job.company_id,
     ambiente: job.ambiente,
     focus_ref: job.focus_ref,
+    // `claim_nfse_jobs` devolve a linha inteira, então o metadata vem junto e o
+    // carimbo de arquivo faltando pode ser mesclado já na emissão
+    metadata: (job.metadata ?? null) as Record<string, unknown> | null,
   };
   const confirmed = await queryFocusDoc(base, documentType, job.focus_ref, token);
   if (confirmed) {
@@ -314,7 +318,7 @@ async function emitJob(
  */
 async function reconcile(supabase: SupabaseClient): Promise<{ checked: number; updated: number }> {
   const cutoff = new Date(Date.now() - RECONCILE_STALE_MINUTES * 60_000).toISOString();
-  const cols = "id, company_id, document_type, ambiente, focus_ref";
+  const cols = "id, company_id, document_type, ambiente, focus_ref, metadata";
 
   const [{ data: stale }, { data: rejectedCandidates }] = await Promise.all([
     supabase
@@ -361,6 +365,85 @@ async function reconcile(supabase: SupabaseClient): Promise<{ checked: number; u
   return { checked: jobs.length, updated };
 }
 
+/** Teto por rodada: a varredura é oportunista e divide a janela com o reconcile. */
+const MISSING_FILES_BATCH = 25;
+
+/**
+ * Notas AUTORIZADAS sem PDF (ou sem XML): reconsulta o Focus e tenta de novo.
+ *
+ * Por que existe: 314 NFS-e da RCO Tecnologia ficaram autorizadas com XML e sem
+ * DANFSe, e não havia caminho de recuperação — o `reconcile` só olha nota presa
+ * em trânsito, e uma nota autorizada não volta a ser consultada nunca mais. O
+ * arquivo faltando é invisível até alguém tentar baixar.
+ *
+ * Na NFS-e municipal o PDF pode ser gerado pela prefeitura DEPOIS da
+ * autorização, então reconsultar é a única forma de saber — e por isso
+ * `shouldRecheckFiles` dá uma janela em vez de desistir na primeira tentativa.
+ * Quando o Focus continuar sem oferecer o caminho, o motivo fica carimbado no
+ * job (`metadata.fileCheck`), que é o diagnóstico que faltava.
+ */
+async function reconcileMissingFiles(
+  supabase: SupabaseClient,
+): Promise<{ checked: number; recovered: number; motivos: Record<string, number> }> {
+  const { data } = await supabase
+    .from("invoice_jobs")
+    .select("id, company_id, document_type, ambiente, focus_ref, metadata")
+    .eq("status", "authorized")
+    .is("danfse_path", null)
+    .not("focus_ref", "is", null)
+    .order("updated_at", { ascending: true })
+    .limit(MISSING_FILES_BATCH * 4);
+
+  const candidatos = (
+    (data ?? []) as (FocusJobRef & {
+      document_type: FiscalDocumentType | null;
+    })[]
+  )
+    .filter((j) => shouldRecheckFiles(j.metadata))
+    .slice(0, MISSING_FILES_BATCH);
+
+  let recovered = 0;
+  const motivos: Record<string, number> = {};
+
+  for (const job of candidatos) {
+    const { data: token } = await supabase.rpc("get_focus_token", { p_company_id: job.company_id });
+    if (typeof token !== "string" || token.length === 0) {
+      motivos.sem_token = (motivos.sem_token ?? 0) + 1;
+      continue;
+    }
+
+    const base = FOCUS_BASE[job.ambiente] ?? FOCUS_BASE.homologacao;
+    const path = focusQueryPath(job.document_type ?? "nfse", job.focus_ref);
+    const res = await fetch(`${base}${path}`, {
+      headers: { Authorization: "Basic " + btoa(`${token}:`) },
+    });
+    if (!res.ok) {
+      motivos[`consulta_http_${res.status}`] = (motivos[`consulta_http_${res.status}`] ?? 0) + 1;
+      continue;
+    }
+
+    const doc = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    // o próprio applyFocusDocument baixa o que houver e carimba o que faltar
+    await applyFocusDocument(supabase, job, doc, token);
+
+    const { data: depois } = await supabase
+      .from("invoice_jobs")
+      .select("danfse_path, metadata")
+      .eq("id", job.id)
+      .maybeSingle();
+
+    if (depois?.danfse_path) {
+      recovered += 1;
+    } else {
+      const motivo = ((depois?.metadata as { fileCheck?: { danfse?: string } } | null)?.fileCheck
+        ?.danfse ?? "desconhecido") as string;
+      motivos[motivo] = (motivos[motivo] ?? 0) + 1;
+    }
+  }
+
+  return { checked: candidatos.length, recovered, motivos };
+}
+
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
 
@@ -372,10 +455,20 @@ Deno.serve(async (req: Request): Promise<Response> => {
     auth: { persistSession: false },
   });
 
-  // modo reconcile: reconsulta jobs presos (acionado por pg_cron)
+  // modo reconcile: reconsulta jobs presos (acionado por pg_cron) e, na mesma
+  // passada, varre nota autorizada com arquivo faltando. Juntos de propósito:
+  // os dois são "pergunte ao Focus o que você não sabe", e assim a recuperação
+  // do PDF não precisa de cron próprio.
   if (url.searchParams.get("mode") === "reconcile") {
     const result = await reconcile(supabase);
-    return json({ mode: "reconcile", ...result });
+    const files = await reconcileMissingFiles(supabase);
+    return json({ mode: "reconcile", ...result, files });
+  }
+
+  // modo files: só a varredura de arquivo faltando, para acionar na mão durante
+  // um backfill sem esperar a janela do cron
+  if (url.searchParams.get("mode") === "files") {
+    return json({ mode: "files", ...(await reconcileMissingFiles(supabase)) });
   }
 
   // modo padrão: drena a fila

@@ -89,7 +89,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // 2) localizar o job pela ref
   const { data: job } = await supabase
     .from("invoice_jobs")
-    .select("id, company_id, ambiente, status")
+    .select("id, company_id, ambiente, status, metadata")
     .eq("focus_ref", ref)
     .maybeSingle();
   if (!job) {
@@ -111,6 +111,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       company_id: job.company_id as string,
       ambiente: job.ambiente as string,
       focus_ref: ref,
+      metadata: (job.metadata ?? null) as Record<string, unknown> | null,
     },
     payload,
     token,
