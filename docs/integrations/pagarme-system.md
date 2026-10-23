@@ -409,8 +409,16 @@ Snapshot de 12/08/2026, fim da sessão:
   "Pagar-me" que já existem.
 - ⛔ A RCO ainda não tem configuração de write-back.
 - ⛔ Projeção desligada (esperado — liga-se depois de conferir).
-- ⛔ Eventos além de `charge.paid` não assinados no painel do pagar.me: nunca chegou
-  nenhum `charge.refunded` / `chargedback` / `payment_failed`.
+- ✅ Eventos de estorno assinados e chegando desde 13/08/2026 (conferido em 23/10/2026:
+  94 `charge.refunded`, 13 `charge.chargedback`, 9 `charge.partial_canceled`). A versão
+  anterior desta linha dizia que nunca havia chegado nenhum — estava velha, e foi com
+  base nela que a esteira fiscal seguiu sem tratar estorno.
+- ⛔ `refunded_amount` na venda está SUBESTIMADO: é escrito só por `syncChargePayables`,
+  e `runBalanceOperations` grava recebível de estorno sem recalcular o agregado. Em
+  23/10/2026: R$ 136.466,76 de payables `refund`/`chargeback` contra R$ 102.180,64
+  somados no campo, com 195 vendas zeradas apesar de terem payable. O KPI "Estornos e
+  chargebacks" de `/vendas` mostra o número menor. **Não use esse campo como sinal de
+  estorno** — o guardrail fiscal usa (evento, status), ver `_shared/pagarme/refunds.ts`.
 
 ---
 

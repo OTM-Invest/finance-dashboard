@@ -23,6 +23,7 @@ import {
   type LedgerAccount,
 } from "./ledger.ts";
 import type { PagarmePayable } from "./payables.ts";
+import { refundStateFromCharge, refundStateFromPayables } from "./refunds.ts";
 import type { PagarmeSubscriptionRecord } from "./subscriptions.ts";
 
 /** Conta pagar.me + mapa recebedor→empresa, tudo que a escrita precisa. */
@@ -101,7 +102,15 @@ export async function writeCustomer(
   await writeCustomerRecord(supabase, ctx, charge.customer, charge.paidAt);
 }
 
-/** Upsert da venda. */
+/**
+ * Upsert da venda.
+ *
+ * Também avisa a esteira fiscal quando o status da cobrança já denuncia estorno
+ * (`canceled`/`chargedback`). É a REDE para webhook perdido: o sync diário e o
+ * backfill releem a venda e, se o evento se perdeu, a nota ainda não emitida é
+ * barrada aqui. Estorno parcial não aparece no status e depende do evento — ver
+ * `refunds.ts` e o chamador em `pagarme-webhook`.
+ */
 export async function writeCharge(
   supabase: SupabaseClient,
   ctx: LedgerContext,
@@ -111,6 +120,14 @@ export async function writeCharge(
   await supabase.from("pagarme_charges").upsert(chargeRow(charge, ctx.account, salesEventId), {
     onConflict: "pagarme_account_id,pagarme_charge_id",
   });
+
+  const refundState = refundStateFromCharge(charge.status);
+  if (refundState !== "none") {
+    await supabase.rpc("apply_charge_refund_to_jobs", {
+      p_charge_id: charge.chargeId,
+      p_state: refundState,
+    });
+  }
 }
 
 /** Upsert da assinatura. */
@@ -194,6 +211,14 @@ export async function syncChargePayables(
       .update({ refunded_amount: refunded })
       .eq("pagarme_account_id", ctx.account.id)
       .eq("pagarme_charge_id", chargeId);
+
+    // payable negativo é dinheiro que voltou, mesmo sem evento e com a cobrança
+    // ainda `paid` (estorno parcial). Retém a nota; `greatest` no banco garante
+    // que isso nunca rebaixe um `full`/`chargeback` já detectado.
+    await supabase.rpc("apply_charge_refund_to_jobs", {
+      p_charge_id: chargeId,
+      p_state: refundStateFromPayables(true),
+    });
   }
 
   return { status: "synced", written, unmappedRecipients };

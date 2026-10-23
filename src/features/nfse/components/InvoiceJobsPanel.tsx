@@ -12,7 +12,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAuth } from "@/features/auth/AuthProvider";
 import { useCompanyScope } from "@/features/companies/CompanyContext";
 import { formatDate } from "@/lib/dates";
 import { formatBRL } from "@/lib/format";
@@ -26,8 +25,10 @@ import {
 import {
   AMBIENTE_META,
   DATE_FIELD_COLUMN_LABEL,
+  isRefundHeld,
   JOB_STATUS_FILTERS,
   JOB_STATUS_META,
+  REFUND_STATE_META,
 } from "../constants";
 import { exportInvoiceJobs, exportInvoiceJobsZip, type ExportFormat } from "../export";
 import { useApproveInvoiceJobs, useConnections, useInvoiceJobs } from "../hooks";
@@ -47,7 +48,6 @@ function jobOrigin(job: InvoiceJob): { label: string; tone: "accent" | "default"
 }
 
 export function InvoiceJobsPanel() {
-  const { user } = useAuth();
   const { data: connections = [] } = useConnections();
   const approveJobs = useApproveInvoiceJobs();
 
@@ -113,16 +113,19 @@ export function InvoiceJobsPanel() {
   }, [companyIds, setPage, clear]);
 
   function emitSelected() {
-    approveJobs.mutate(
-      { ids: [...selected], userId: user?.id ?? "" },
-      {
-        onSuccess: (n) => {
-          toast.success(`${n} nota(s) enviadas para a fila de emissão.`);
-          clear();
-        },
-        onError: (e) => toast.error(e instanceof Error ? e.message : "Falha ao emitir."),
+    approveJobs.mutate([...selected], {
+      onSuccess: ({ approved, blocked }) => {
+        toast.success(`${approved} nota(s) enviadas para a fila de emissão.`);
+        // retidas nunca somem em silêncio: o número que não saiu é o que importa
+        if (blocked > 0) {
+          toast.warning(
+            `${blocked} nota(s) retidas: a venda foi estornada. Abra cada uma para liberar ou descartar.`,
+          );
+        }
+        clear();
       },
-    );
+      onError: (e) => toast.error(e instanceof Error ? e.message : "Falha ao emitir."),
+    });
   }
 
   // exporta TODAS as notas do filtro atual (não só a página) para a contabilidade
@@ -259,7 +262,9 @@ export function InvoiceJobsPanel() {
                   label: job.ambiente,
                   tone: "default" as const,
                 };
-                const selectable = job.status === "pending_review";
+                const retida = isRefundHeld(job);
+                const estorno = retida ? REFUND_STATE_META[job.refund_state] : null;
+                const selectable = job.status === "pending_review" && !retida;
                 // a coluna de data acompanha o campo filtrado
                 const dateValue = job[ui.dateField];
                 return (
@@ -273,7 +278,7 @@ export function InvoiceJobsPanel() {
                         checked={selected.has(job.id)}
                         disabled={!selectable}
                         onCheckedChange={() => toggle(job.id)}
-                        aria-label="Selecionar nota"
+                        aria-label={retida ? "Nota retida: venda estornada" : "Selecionar nota"}
                       />
                     </td>
                     <td className="px-3 py-2.5 font-mono text-xs whitespace-nowrap text-text-muted">
@@ -299,7 +304,10 @@ export function InvoiceJobsPanel() {
                       <Badge tone={amb.tone}>{amb.label}</Badge>
                     </td>
                     <td className="px-3 py-2.5">
-                      <Badge tone={status.tone}>{status.label}</Badge>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <Badge tone={status.tone}>{status.label}</Badge>
+                        {estorno ? <Badge tone={estorno.tone}>{estorno.label}</Badge> : null}
+                      </div>
                     </td>
                   </tr>
                 );

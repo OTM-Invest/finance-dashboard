@@ -48,8 +48,53 @@ export const JOB_STATUS_META: Record<string, { label: string; tone: BadgeTone }>
   rejected: { label: "Rejeitada", tone: "expense" },
   cancelling: { label: "Cancelando", tone: "warning" },
   cancelled: { label: "Cancelada", tone: "default" },
+  voided: { label: "Descartada", tone: "default" },
   failed: { label: "Falhou", tone: "expense" },
 };
+
+/**
+ * Estado do dinheiro da venda que originou a nota.
+ *
+ * "Descartada" (`voided`) e "Cancelada" (`cancelled`) são coisas diferentes e a
+ * tela não pode borrá-las: a primeira nunca existiu na prefeitura, a segunda
+ * existiu e foi cancelada — obrigação acessória, com reflexo na apuração do ISS.
+ */
+export const REFUND_STATE_META: Record<
+  string,
+  { label: string; tone: BadgeTone; descricao: string }
+> = {
+  partial: {
+    label: "Estorno parcial",
+    tone: "warning",
+    descricao:
+      "Parte do dinheiro voltou e a cobrança segue paga. A nota é devida, mas por valor menor que o desta fila — emitir o valor cheio documenta serviço que não houve.",
+  },
+  full: {
+    label: "Venda estornada",
+    tone: "expense",
+    descricao:
+      "O dinheiro voltou integralmente. Não há serviço a documentar: a nota foi descartada antes de ser emitida.",
+  },
+  chargeback: {
+    label: "Chargeback",
+    tone: "expense",
+    descricao:
+      "O cliente contestou a cobrança, mas o serviço foi prestado. Contabilmente é perda, não desfazimento da venda — a nota pode continuar devida.",
+  },
+};
+
+/**
+ * Nota RETIDA pelo guardrail: a venda teve estorno e ninguém decidiu o que fazer.
+ * Não pode ser aprovada — nem em lote, nem no detalhe — até alguém liberar ou
+ * descartar. O banco recusa de qualquer jeito (trigger + RPC); aqui é só para a
+ * tela não oferecer um botão que vai falhar.
+ */
+export function isRefundHeld(job: {
+  refund_state: string | null;
+  refund_released_at: string | null;
+}): boolean {
+  return (job.refund_state ?? "none") !== "none" && job.refund_released_at === null;
+}
 
 /** Opções do filtro de ambiente na fila de notas. */
 export const AMBIENTE_FILTER_VALUES = ["all", "homologacao", "producao"] as const;
@@ -77,6 +122,7 @@ export const JOB_STATUS_FILTER_VALUES = [
   "processing",
   "authorized",
   "problem",
+  "discarded",
   "all",
 ] as const;
 export type JobStatusFilter = (typeof JOB_STATUS_FILTER_VALUES)[number];
@@ -94,6 +140,7 @@ export const JOB_STATUS_FILTERS: {
   },
   { value: "authorized", label: "Autorizadas", statuses: ["authorized"] },
   { value: "problem", label: "Com erro", statuses: ["rejected", "failed"] },
+  { value: "discarded", label: "Descartadas", statuses: ["voided"] },
   { value: "all", label: "Todas", statuses: null },
 ];
 

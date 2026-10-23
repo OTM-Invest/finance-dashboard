@@ -1259,6 +1259,10 @@ export type Database = {
           paid_at: string | null
           parametros: Json
           protocolo: string | null
+          refund_detected_at: string | null
+          refund_released_at: string | null
+          refund_released_by: string | null
+          refund_state: Database["public"]["Enums"]["invoice_refund_state"]
           sales_event_id: string | null
           serie: string | null
           status: Database["public"]["Enums"]["invoice_job_status"]
@@ -1303,6 +1307,10 @@ export type Database = {
           paid_at?: string | null
           parametros?: Json
           protocolo?: string | null
+          refund_detected_at?: string | null
+          refund_released_at?: string | null
+          refund_released_by?: string | null
+          refund_state?: Database["public"]["Enums"]["invoice_refund_state"]
           sales_event_id?: string | null
           serie?: string | null
           status?: Database["public"]["Enums"]["invoice_job_status"]
@@ -1347,6 +1355,10 @@ export type Database = {
           paid_at?: string | null
           parametros?: Json
           protocolo?: string | null
+          refund_detected_at?: string | null
+          refund_released_at?: string | null
+          refund_released_by?: string | null
+          refund_state?: Database["public"]["Enums"]["invoice_refund_state"]
           sales_event_id?: string | null
           serie?: string | null
           status?: Database["public"]["Enums"]["invoice_job_status"]
@@ -4225,6 +4237,20 @@ export type Database = {
         }
         Returns: string
       }
+      apply_charge_refund_to_jobs: {
+        Args: {
+          p_charge_id: string
+          p_state: Database["public"]["Enums"]["invoice_refund_state"]
+        }
+        Returns: number
+      }
+      approve_invoice_jobs: {
+        Args: { p_ids: string[] }
+        Returns: {
+          approved: number
+          blocked: number
+        }[]
+      }
       approve_recurring_template: {
         Args: { p_template_id: string }
         Returns: string
@@ -4410,6 +4436,10 @@ export type Database = {
           paid_at: string | null
           parametros: Json
           protocolo: string | null
+          refund_detected_at: string | null
+          refund_released_at: string | null
+          refund_released_by: string | null
+          refund_state: Database["public"]["Enums"]["invoice_refund_state"]
           sales_event_id: string | null
           serie: string | null
           status: Database["public"]["Enums"]["invoice_job_status"]
@@ -5283,6 +5313,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      release_invoice_job_for_emission: {
+        Args: { p_id: string; p_motivo: string }
+        Returns: Database["public"]["Enums"]["invoice_job_status"]
+      }
       reopen_tax_assessment: {
         Args: { p_assessment_id: string }
         Returns: {
@@ -5560,6 +5594,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      void_invoice_job: {
+        Args: { p_id: string; p_motivo: string }
+        Returns: Database["public"]["Enums"]["invoice_job_status"]
+      }
     }
     Enums: {
       account_kind:
@@ -5641,6 +5679,8 @@ export type Database = {
         | "cancelling"
         | "cancelled"
         | "failed"
+        | "voided"
+      invoice_refund_state: "none" | "partial" | "full" | "chargeback"
       nfse_ambiente: "homologacao" | "producao"
       nfse_emission_mode: "manual" | "automatic"
       nfse_padrao: "municipal" | "nacional"
@@ -5736,12 +5776,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -5765,11 +5805,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -5790,11 +5830,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -5815,11 +5855,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -5832,11 +5872,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -5920,7 +5960,9 @@ export const Constants = {
         "cancelling",
         "cancelled",
         "failed",
+        "voided",
       ],
+      invoice_refund_state: ["none", "partial", "full", "chargeback"],
       nfse_ambiente: ["homologacao", "producao"],
       nfse_emission_mode: ["manual", "automatic"],
       nfse_padrao: ["municipal", "nacional"],
