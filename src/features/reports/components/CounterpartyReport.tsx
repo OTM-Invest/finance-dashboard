@@ -1,4 +1,5 @@
 import { Download } from "lucide-react";
+import { Link, useNavigate } from "react-router";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { counterpartyTransactionsHref } from "@/features/transactions/links";
 import { cn } from "@/lib/cn";
 import { downloadCsv, toCsv } from "@/lib/csv";
 import { formatDate } from "@/lib/dates";
@@ -37,6 +39,7 @@ const KIND_LABEL: Record<string, string> = {
 
 export function CounterpartyReport({ companyIds, from, to, kind, onKindChange }: Props) {
   const { data = [], isLoading } = useCounterpartyAnalysis(companyIds, from, to, kind, 30);
+  const navigate = useNavigate();
 
   return (
     <div className="space-y-3">
@@ -126,9 +129,24 @@ export function CounterpartyReport({ companyIds, from, to, kind, onKindChange }:
             </thead>
             <tbody className="divide-y divide-border">
               {data.map((r) => (
-                <tr key={r.counterpartyId} className="hover:bg-surface-2/60">
+                <tr
+                  key={r.counterpartyId}
+                  className="cursor-pointer hover:bg-surface-2/60"
+                  // conveniência do mouse; quem navega por teclado usa o link do
+                  // nome, que é o elemento focável de verdade. O clique no próprio
+                  // link já navega — ignorar aqui evita disparar duas vezes.
+                  onClick={(e) => {
+                    if ((e.target as HTMLElement).closest("a")) return;
+                    void navigate(counterpartyTransactionsHref(r.counterpartyId, from, to));
+                  }}
+                >
                   <td className="px-3 py-2">
-                    <div className="text-sm">{r.name}</div>
+                    <Link
+                      to={counterpartyTransactionsHref(r.counterpartyId, from, to)}
+                      className="text-sm hover:underline"
+                    >
+                      {r.name}
+                    </Link>
                     <Badge tone="default" className="mt-0.5">
                       {KIND_LABEL[r.kind] ?? r.kind}
                     </Badge>

@@ -65,6 +65,7 @@ export default function TransactionsPage() {
       accountId: filters.accountId || null,
       costCenterId: filters.costCenterId || null,
       bankAccountId: filters.bankAccountId || null,
+      counterpartyId: filters.counterpartyId || null,
       search: filters.search || null,
     }),
     [
@@ -76,6 +77,7 @@ export default function TransactionsPage() {
       filters.accountId,
       filters.costCenterId,
       filters.bankAccountId,
+      filters.counterpartyId,
       filters.search,
     ],
   );

@@ -52,6 +52,21 @@ export function hasFocusError(body: Record<string, unknown> | null | undefined):
   return hasErros || typeof body.codigo === "string" || typeof body.mensagem === "string";
 }
 
+/**
+ * Resultado da cópia de um arquivo do Focus para o Storage.
+ *
+ * Existe porque a versão anterior devolvia `string | null`, e `null` significava
+ * três coisas diferentes: o Focus não deu o caminho, o download falhou, ou o
+ * upload falhou. O efeito disso apareceu em produção: 314 NFS-e da RCO sem PDF,
+ * e nada no banco para distinguir "o Focus não gera DANFSe para este município"
+ * de "o download quebrou". Sem o motivo gravado, não há diagnóstico possível —
+ * só adivinhação.
+ */
+export type FileOutcome = { ok: true; path: string } | { ok: false; reason: string };
+
+/** Motivo quando o documento do Focus nem traz o caminho do arquivo. */
+export const REASON_NO_PATH = "caminho_ausente_no_focus";
+
 async function downloadToStorage(
   supabase: SupabaseClient,
   base: string,
@@ -59,15 +74,21 @@ async function downloadToStorage(
   caminho: string,
   destPath: string,
   contentType: string,
-): Promise<string | null> {
+): Promise<FileOutcome> {
   const url = caminho.startsWith("http") ? caminho : `${base}${caminho}`;
-  const resp = await fetch(url, { headers: { Authorization: `Basic ${btoa(`${token}:`)}` } });
-  if (!resp.ok) return null;
+  let resp: Response;
+  try {
+    resp = await fetch(url, { headers: { Authorization: `Basic ${btoa(`${token}:`)}` } });
+  } catch (e) {
+    return { ok: false, reason: `rede: ${e instanceof Error ? e.message : String(e)}` };
+  }
+  if (!resp.ok) return { ok: false, reason: `http_${resp.status}` };
+
   const bytes = new Uint8Array(await resp.arrayBuffer());
   const { error } = await supabase.storage
     .from(BUCKET)
     .upload(destPath, bytes, { contentType, upsert: true });
-  return error ? null : destPath;
+  return error ? { ok: false, reason: `storage: ${error.message}` } : { ok: true, path: destPath };
 }
 
 export interface FocusJobRef {
@@ -75,6 +96,54 @@ export interface FocusJobRef {
   company_id: string;
   ambiente: string;
   focus_ref: string;
+  /** Opcional: quando vem, o carimbo de `fileCheck` é mesclado nele. */
+  metadata?: Record<string, unknown> | null;
+}
+
+/** O que se sabe sobre os arquivos de uma nota autorizada. */
+export interface FileCheck {
+  at: string;
+  xml?: string;
+  danfse?: string;
+}
+
+/**
+ * Monta o carimbo de diagnóstico dos arquivos. `null` quando os dois vieram —
+ * nota completa não precisa de carimbo.
+ *
+ * Puro: é o pedaço testável da decisão. Ver `FileOutcome` para o motivo de isto
+ * existir.
+ */
+export function buildFileCheck(
+  xmlReason: string | null,
+  danfseReason: string | null,
+  now: Date = new Date(),
+): FileCheck | null {
+  if (!xmlReason && !danfseReason) return null;
+  return {
+    at: now.toISOString(),
+    ...(xmlReason ? { xml: xmlReason } : {}),
+    ...(danfseReason ? { danfse: danfseReason } : {}),
+  };
+}
+
+/**
+ * Vale reconsultar o Focus por causa de arquivo faltando?
+ *
+ * `true` quando nunca se checou, ou quando a última checagem é mais velha que a
+ * janela — o PDF da NFS-e municipal pode aparecer depois que a prefeitura o
+ * gera, então "não tinha" não é resposta definitiva. Sem essa janela, a varredura
+ * reconsultaria as mesmas notas a cada 5 minutos para sempre.
+ */
+export function shouldRecheckFiles(
+  metadata: Record<string, unknown> | null | undefined,
+  windowHours = 24,
+  now: Date = new Date(),
+): boolean {
+  const check = (metadata ?? {}).fileCheck as { at?: unknown } | undefined;
+  const at = typeof check?.at === "string" ? Date.parse(check.at) : NaN;
+  if (Number.isNaN(at)) return true;
+  return now.getTime() - at >= windowHours * 3_600_000;
 }
 
 /**
@@ -90,6 +159,8 @@ export async function applyFocusDocument(
 ): Promise<string | null> {
   const focusStatus = asString(doc.status);
   const nextStatus = mapFocusStatus(focusStatus);
+  let xmlReason: string | null = null;
+  let danfseReason: string | null = null;
 
   const update: Record<string, unknown> = {
     focus_status: focusStatus,
@@ -112,8 +183,9 @@ export async function applyFocusDocument(
     const base = FOCUS_BASE[job.ambiente] ?? FOCUS_BASE.homologacao;
     const xmlPath = asString(doc.caminho_xml_nota_fiscal);
     const danfsePath = asString(doc.caminho_danfse) ?? asString(doc.caminho_danfe);
+
     if (xmlPath) {
-      const saved = await downloadToStorage(
+      const r = await downloadToStorage(
         supabase,
         base,
         token,
@@ -121,10 +193,14 @@ export async function applyFocusDocument(
         `${job.company_id}/${job.focus_ref}.xml`,
         "application/xml",
       );
-      if (saved) update.xml_path = saved;
+      if (r.ok) update.xml_path = r.path;
+      else xmlReason = r.reason;
+    } else {
+      xmlReason = REASON_NO_PATH;
     }
+
     if (danfsePath) {
-      const saved = await downloadToStorage(
+      const r = await downloadToStorage(
         supabase,
         base,
         token,
@@ -132,7 +208,22 @@ export async function applyFocusDocument(
         `${job.company_id}/${job.focus_ref}.pdf`,
         "application/pdf",
       );
-      if (saved) update.danfse_path = saved;
+      if (r.ok) update.danfse_path = r.path;
+      else danfseReason = r.reason;
+    } else {
+      danfseReason = REASON_NO_PATH;
+    }
+
+    // carimba POR QUE um arquivo não veio. Só quando falta algo: nota completa
+    // não carrega ruído, e quem varre depois (`mode=files`) lê isto para decidir
+    // se vale reconsultar o Focus ou se já se sabe que não há PDF.
+    const fileCheck = buildFileCheck(xmlReason, danfseReason);
+    // `undefined` = o chamador NÃO trouxe a coluna. Gravar aqui substituiria o
+    // metadata inteiro do job por `{fileCheck}`, apagando splitSource, revisão
+    // de tomador e o marcador de estorno. `null` é diferente: é metadata vazio
+    // de verdade, e pode receber o carimbo.
+    if (fileCheck && job.metadata !== undefined) {
+      update.metadata = { ...(job.metadata ?? {}), fileCheck };
     }
   }
 

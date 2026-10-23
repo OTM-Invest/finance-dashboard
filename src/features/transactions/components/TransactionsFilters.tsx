@@ -1,5 +1,6 @@
 import { Search, X } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +13,8 @@ import {
 } from "@/components/ui/select";
 import { useAccountsByCompany } from "@/features/accounts/hooks";
 import { useBankAccounts } from "@/features/bank-accounts/hooks";
+import { useCompanyScope } from "@/features/companies/CompanyContext";
+import { useCounterparties } from "@/features/counterparties/hooks";
 
 import { NO_BANK_ACCOUNT } from "../types";
 import { useTransactionFilters } from "../useTransactionFilters";
@@ -25,6 +28,16 @@ export function TransactionsFilters({ companyId }: Props) {
   const { data: accounts = [] } = useAccountsByCompany(companyId);
   const { data: bankAccounts = [] } = useBankAccounts(companyId);
 
+  // o nome do fornecedor é resolvido pelo id (a lista da organização tem ~150
+  // linhas e já está em cache): levar o nome na URL duplicaria estado que pode
+  // envelhecer se a contraparte for renomeada
+  const { companies } = useCompanyScope();
+  const organizationId = companies[0]?.organization_id ?? "";
+  const { data: counterparties = [] } = useCounterparties({ organizationId });
+  const counterpartyName = filters.counterpartyId
+    ? counterparties.find((c) => c.id === filters.counterpartyId)?.name
+    : undefined;
+
   const hasAny = [
     filters.from,
     filters.to,
@@ -32,6 +45,7 @@ export function TransactionsFilters({ companyId }: Props) {
     filters.direction,
     filters.accountId,
     filters.bankAccountId,
+    filters.counterpartyId,
     filters.search,
   ].some(Boolean);
 
@@ -43,7 +57,7 @@ export function TransactionsFilters({ companyId }: Props) {
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-text-subtle" />
           <Input
             id="search"
-            placeholder="Descrição do lançamento…"
+            placeholder="Descrição ou fornecedor…"
             value={filters.search}
             onChange={(e) => void setFilters({ search: e.target.value })}
             className="pl-9"
@@ -176,12 +190,29 @@ export function TransactionsFilters({ companyId }: Props) {
               accountId: "",
               costCenterId: "",
               bankAccountId: "",
+              counterpartyId: "",
               search: "",
             })
           }
         >
           <X className="size-3.5" /> Limpar
         </Button>
+      )}
+
+      {/*
+        O recorte por fornecedor não tem campo próprio: ele chega pela URL, vindo
+        do relatório de contrapartes. Por isso precisa de rótulo visível — sem
+        ele, a pessoa cairia numa lista filtrada sem nada na tela explicando por
+        que faltam lançamentos, que é o pior tipo de filtro.
+      */}
+      {filters.counterpartyId && (
+        <div className="flex w-full items-center gap-2">
+          <span className="text-2xs tracking-wide text-text-subtle uppercase">Fornecedor</span>
+          <Badge tone="accent">{counterpartyName ?? "selecionado"}</Badge>
+          <Button variant="ghost" size="sm" onClick={() => void setFilters({ counterpartyId: "" })}>
+            <X className="size-3.5" /> Remover
+          </Button>
+        </div>
       )}
     </div>
   );

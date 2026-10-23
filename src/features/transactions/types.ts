@@ -42,11 +42,13 @@ export interface TransactionFilters {
   accountId?: string | null;
   costCenterId?: string | null;
   bankAccountId?: string | null;
+  /** Recorte por fornecedor — é por onde o relatório de contrapartes entra aqui. */
+  counterpartyId?: string | null;
   search?: string | null;
   /** 1-based page number */
   page?: number;
   pageSize?: number;
-  sortBy?: "accrual_date" | "cash_date" | "amount" | "description";
+  sortBy?: "accrual_date" | "due_date" | "cash_date" | "amount" | "description";
   sortOrder?: "asc" | "desc";
 }
 
