@@ -47,6 +47,7 @@ const SettingsClassificationRulesPage = lazy(
   () => import("@/routes/settings.classification-rules"),
 );
 const CardStatementsPage = lazy(() => import("@/routes/card-statements"));
+const SpendingPage = lazy(() => import("@/routes/gastos"));
 const CardStatementDetailPage = lazy(() => import("@/routes/card-statements.detail"));
 const SettingsCounterpartiesPage = lazy(() => import("@/routes/settings.counterparties"));
 const SettingsPayrollPage = lazy(() => import("@/routes/settings.payroll"));
@@ -123,6 +124,7 @@ export default function App() {
                     <Route path="recurring" element={<RecurringPage />} />
                     <Route path="audit" element={<AuditPage />} />
                     <Route path="import" element={<ImportPage />} />
+                    <Route path="gastos" element={<SpendingPage />} />
                     <Route path="faturas" element={<CardStatementsPage />} />
                     <Route path="faturas/:id" element={<CardStatementDetailPage />} />
                     <Route path="integracoes" element={<IntegracoesPage />} />

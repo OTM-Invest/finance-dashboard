@@ -12,6 +12,7 @@ import {
   History,
   Landmark,
   LayoutDashboard,
+  PieChart,
   Plug,
   Receipt,
   Repeat,
@@ -46,6 +47,7 @@ const navItems: NavItem[] = [
   { to: "/cashflow", label: "Fluxo de Caixa", icon: TrendingUp, module: "financials" },
   { to: "/contas", label: "Contas", icon: Wallet, module: "financials" },
   { to: "/reconciliation", label: "Conciliação", icon: GitCompare, module: "financials" },
+  { to: "/gastos", label: "Central de Gastos", icon: PieChart, module: "financials" },
   { to: "/faturas", label: "Faturas de cartão", icon: CreditCard, module: "financials" },
   { to: "/forecast", label: "Forecast 90d", icon: CalendarRange, module: "financials" },
   // `end` para o item não ficar ativo junto de /reports/builder.

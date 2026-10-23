@@ -5807,6 +5807,57 @@ export type Database = {
           revenue_deductions: number
         }[]
       }
+      management_breakdown_multi: {
+        Args: {
+          p_basis?: Database["public"]["Enums"]["accounting_basis"]
+          p_by_vendor?: boolean
+          p_codes?: string[]
+          p_company_ids?: string[]
+          p_from: string
+          p_to: string
+        }
+        Returns: {
+          amount_usd: number
+          company_id: string
+          cost_center_id: string
+          currency: string
+          inflow: number
+          iof_amount: number
+          line_count: number
+          management_account_id: string
+          management_group_id: string
+          months: string[]
+          nature: Database["public"]["Enums"]["expense_nature"]
+          outflow: number
+          requires_detail: boolean
+          source: string
+          vendor_key: string
+          vendor_name: string
+        }[]
+      }
+      management_card_summary: {
+        Args: {
+          p_basis?: Database["public"]["Enums"]["accounting_basis"]
+          p_company_ids?: string[]
+          p_from: string
+          p_to: string
+        }
+        Returns: {
+          amount_usd: number
+          card_id: string
+          company_id: string
+          future_installments: number
+          holder_name: string
+          inflow: number
+          iof_amount: number
+          kind: string
+          last_closing_date: string
+          last4: string
+          outflow: number
+          statement_count: number
+          unconfirmed_amount: number
+        }[]
+      }
       management_kind_accepts: {
         Args: {
           p_account_kind: Database["public"]["Enums"]["account_kind"]
@@ -5858,6 +5909,23 @@ export type Database = {
           nature: Database["public"]["Enums"]["expense_nature"]
           revenue: number
           transaction_count: number
+        }[]
+      }
+      management_reconciliation: {
+        Args: {
+          p_basis?: Database["public"]["Enums"]["accounting_basis"]
+          p_company_ids?: string[]
+          p_from: string
+          p_to: string
+        }
+        Returns: {
+          company_id: string
+          difference: number
+          layer_inflow: number
+          layer_outflow: number
+          ledger_inflow: number
+          ledger_outflow: number
+          month: string
         }[]
       }
       mark_overdue_obligations: {
