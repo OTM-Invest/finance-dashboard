@@ -1,13 +1,13 @@
 # Central de Gastos e plano gerencial — plano
 
-> Status: **proposta revisada** (2026-10-23). Nada implementado.
+> **Estado atual, o que falta e mudanças de rota: [`central-de-gastos.md`](central-de-gastos.md).**
+> Este arquivo é o histórico das decisões — diagnóstico, números, simulação e o porquê de
+> cada escolha. Fases 0 a 3 feitas na branch `feat/plano-gerencial` (não aplicadas no
+> remoto); Fase 4 cancelada (ver §11).
+>
 > Base empírica: as faturas C6 Business com vencimento 01/10/2026 de Jimmy, OTM
 > Assessoria e RCO Tecnologia; os lançamentos de out/2025 a set/2026; e os 6 modelos de
 > Balanço gravados em `balance_report_models` no remoto.
->
-> Revisão anterior propunha manter o centro de custo intocado e criar dimensões à parte.
-> Foi descartada: preservava a redundância centro × conta que hoje gera erro no Balanço
-> (§2) e deixaria Balanço e Central com números diferentes para a mesma pergunta.
 
 ## 1. Objetivo
 
@@ -398,15 +398,15 @@ fonte do Balanço), `management_breakdown_multi` (Central), `management_reconcil
 
 ## 11. Fases
 
-| Fase                   | Entrega                                                                                                                                                                                                                   | Mexe em dado existente?   |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
-| **0. Plano gerencial** | `management_accounts` + mapa conta→plano no master; relatório das inconsistências do §2.2 com proposta de tratamento; classificação dos 10 colaboradores de Diretoria + TI e das 21 contrapartes de Apoio; lista de áreas | Não — só acrescenta       |
-| **1. Migração única**  | Centros → áreas, natureza, Balanço por filtro, log, asserts; matriz antes × depois aprovada                                                                                                                               | **Sim**, uma vez, com log |
-| **2. Cartão — texto**  | `payment_cards`, `card_statements`, `card_statement_lines`; parser C6 + validador + fixtures; upload e conferência                                                                                                        | Não                       |
-| **3. Classificação**   | `classification_rules` + seed; fila de revisão; sugestão por IA                                                                                                                                                           | Não                       |
-| **4. Cartão — visão**  | Caminho por visão para PDF-imagem; outro emissor se houver                                                                                                                                                                | Não                       |
-| **5. Central**         | `/gastos` (§8); Balanço ganha linhas Tecnologia/Marketing se vocês quiserem                                                                                                                                               | Não                       |
-| **6. MCP + backfill**  | Tool `management_breakdown`; ~24 faturas dos últimos 12 meses                                                                                                                                                             | Não                       |
+| Fase                      | Entrega                                                                                                                                                                                                                   | Mexe em dado existente?   |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| **0. Plano gerencial**    | `management_accounts` + mapa conta→plano no master; relatório das inconsistências do §2.2 com proposta de tratamento; classificação dos 10 colaboradores de Diretoria + TI e das 21 contrapartes de Apoio; lista de áreas | Não — só acrescenta       |
+| **1. Migração única**     | Centros → áreas, natureza, Balanço por filtro, log, asserts; matriz antes × depois aprovada                                                                                                                               | **Sim**, uma vez, com log |
+| **2. Cartão — texto**     | `payment_cards`, `card_statements`, `card_statement_lines`; parser C6 + validador + fixtures; upload e conferência                                                                                                        | Não                       |
+| **3. Classificação**      | `classification_rules` + seed; fila de revisão; sugestão por IA                                                                                                                                                           | Não                       |
+| ~~**4. Cartão — visão**~~ | **Cancelada (2026-10-23):** os PDFs-imagem foram um "imprimir → salvar PDF" por engano; as faturas reais do C6 têm texto                                                                                                  | —                         |
+| **5. Central**            | `/gastos` (§8); Balanço ganha linhas Tecnologia/Marketing se vocês quiserem                                                                                                                                               | Não                       |
+| **6. MCP + backfill**     | Tool `management_breakdown`; ~24 faturas dos últimos 12 meses                                                                                                                                                             | Não                       |
 
 Cada fase é um PR com migration testada em `db:reset` e `preflight` verde. A Fase 1 é a
 única com risco real, e por isso vem logo depois da validação e antes de tudo que
@@ -514,7 +514,7 @@ Feito, na mesma branch, **ainda não aplicado no remoto**:
 Limites conhecidos desta fase:
 
 - **PDF só imagem não é lido** (OTM e RCO no formato atual). A tela pede o PDF original
-  do C6; a leitura por visão é a Fase 4.
+  do C6 (a leitura por visão, Fase 4, foi cancelada: as faturas reais têm texto).
 - **Classificação é manual.** Regras por fornecedor e sugestão por IA são a Fase 3.
 
 ## 11.4 Estado da Fase 3 (2026-10-23)

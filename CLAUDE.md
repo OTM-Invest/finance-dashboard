@@ -283,8 +283,10 @@ aritmética ou o calendário mudarem.
 
 ## Plano gerencial, áreas & Central de Gastos
 
-Em construção por fases (plano em
-[`docs/features/central-de-gastos-plan.md`](docs/features/central-de-gastos-plan.md)).
+Em construção por fases. **Estado, o que falta e mudanças de rota:**
+[`docs/features/central-de-gastos.md`](docs/features/central-de-gastos.md) — leia
+primeiro. Histórico das decisões:
+[`docs/features/central-de-gastos-plan.md`](docs/features/central-de-gastos-plan.md).
 Feitas: **Fase 0** (plano gerencial + mapa conta → item, `/settings/management-plan`) e
 **Fase 1** (centro de custo vira área; Balanço por filtro sobre o plano gerencial) e
 **Fase 2** (fatura de cartão aberta em compras, `/faturas`) e **Fase 3** (regras de
