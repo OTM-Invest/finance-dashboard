@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, Loader2, Sparkles, Trash2, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -9,15 +9,19 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePermissions } from "@/features/auth/usePermissions";
 import type { CardStatementLineRow } from "@/features/card-statements/api";
+import { CreateRuleSheet } from "@/features/card-statements/components/CreateRuleSheet";
 import {
   StatementLinesTable,
   type ItemOptionGroup,
 } from "@/features/card-statements/components/StatementLinesTable";
 import { ValidationChecks } from "@/features/card-statements/components/ValidationChecks";
 import {
+  useAcceptSuggestions,
+  useApplyClassificationRules,
   useCardStatement,
   useClassifyCardLine,
   useDeleteCardStatement,
+  useRequestAiSuggestions,
 } from "@/features/card-statements/hooks";
 import { useCompanyScope } from "@/features/companies/CompanyContext";
 import { useManagementAccounts } from "@/features/management-accounts/hooks";
@@ -46,7 +50,14 @@ export default function CardStatementDetailPage() {
   const managementQuery = useManagementAccounts();
   const classify = useClassifyCardLine();
   const remove = useDeleteCardStatement();
+  const applyRules = useApplyClassificationRules();
+  const suggest = useRequestAiSuggestions();
+  const accept = useAcceptSuggestions();
   const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const [ruleLine, setRuleLine] = React.useState<CardStatementLineRow | null>(null);
+  // Revisar começa pelo que falta e vale mais: os dez maiores pendentes cobrem quase todo
+  // o dinheiro.
+  const [pendingFirst, setPendingFirst] = React.useState(true);
 
   const groups = React.useMemo<ItemOptionGroup[]>(() => {
     const { groups: tree } = buildManagementTree(
@@ -99,10 +110,37 @@ export default function CardStatementDetailPage() {
     );
   }
 
-  const companyName = companies.find((c) => c.id === statement.company_id)?.trade_name ?? "—";
+  const company = companies.find((c) => c.id === statement.company_id);
+  const companyName = company?.trade_name ?? "—";
   const pendingCount = statement.lines.filter(
     (l) => l.classification_status !== "confirmed",
   ).length;
+  const suggestedCount = statement.lines.filter(
+    (l) => l.classification_status === "suggested",
+  ).length;
+  const unclassifiedCount = statement.lines.filter(
+    (l) => l.classification_status === "unclassified",
+  ).length;
+  const statementId = statement.id;
+
+  const orderedLines = pendingFirst
+    ? [...statement.lines].sort((a, b) => {
+        const pa = a.classification_status === "confirmed" ? 1 : 0;
+        const pb = b.classification_status === "confirmed" ? 1 : 0;
+        return pa - pb || lineTotal(b) - lineTotal(a);
+      })
+    : statement.lines;
+
+  const itemLabel = (itemId: string | null) => {
+    for (const g of groups) {
+      const item = g.items.find((i) => i.id === itemId);
+      if (item) return `${g.name} · ${item.name}`;
+    }
+    return "—";
+  };
+
+  const onError = (title: string) => (err: Error) =>
+    toast.error(title, { description: err.message });
 
   function onClassify(
     line: CardStatementLineRow,
@@ -195,12 +233,109 @@ export default function CardStatementDetailPage() {
         </section>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="mr-auto flex cursor-pointer items-center gap-2 text-xs text-text-muted">
+          <input
+            type="checkbox"
+            checked={pendingFirst}
+            onChange={(e) => setPendingFirst(e.target.checked)}
+            className="accent-[var(--color-accent)]"
+          />
+          A classificar primeiro, por valor
+        </label>
+        {canEdit && (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={applyRules.isPending}
+              onClick={() =>
+                applyRules.mutate(statementId, {
+                  onSuccess: (n) =>
+                    toast.success(
+                      n > 0 ? `${n} compra(s) classificadas por regra` : "Nenhuma regra nova casou",
+                    ),
+                  onError: onError("Não foi possível aplicar as regras"),
+                })
+              }
+            >
+              {applyRules.isPending ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Wand2 className="size-3.5" />
+              )}
+              Aplicar regras
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={suggest.isPending || unclassifiedCount === 0}
+              title="A IA sugere; nada conta no Balanço até você aceitar"
+              onClick={() =>
+                suggest.mutate(statementId, {
+                  onSuccess: (n) =>
+                    toast.success(
+                      n > 0
+                        ? `${n} sugestão(ões) — confira e aceite`
+                        : "A IA não teve segurança para sugerir",
+                    ),
+                  onError: onError("Não foi possível pedir sugestões"),
+                })
+              }
+            >
+              {suggest.isPending ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Sparkles className="size-3.5" />
+              )}
+              Sugerir com IA
+            </Button>
+            <Button
+              size="sm"
+              disabled={accept.isPending || suggestedCount === 0}
+              onClick={() =>
+                accept.mutate(
+                  { statementId },
+                  {
+                    onSuccess: () => toast.success("Sugestões aceitas"),
+                    onError: onError("Não foi possível aceitar"),
+                  },
+                )
+              }
+            >
+              <Check className="size-3.5" /> Aceitar sugestões
+              {suggestedCount > 0 && ` (${suggestedCount})`}
+            </Button>
+          </>
+        )}
+      </div>
+
       <StatementLinesTable
-        lines={statement.lines}
+        lines={orderedLines}
         groups={groups}
         canEdit={canEdit}
         onClassify={onClassify}
+        onAccept={(line) =>
+          accept.mutate(
+            { statementId, lineIds: [line.id] },
+            { onError: onError("Não foi possível aceitar") },
+          )
+        }
+        onCreateRule={setRuleLine}
       />
+
+      {company && (
+        <CreateRuleSheet
+          line={ruleLine}
+          statementId={statementId}
+          companyId={company.id}
+          organizationId={company.organization_id}
+          itemLabel={itemLabel}
+          onOpenChange={(open) => {
+            if (!open) setRuleLine(null);
+          }}
+        />
+      )}
 
       <ConfirmDialog
         open={confirmDelete}

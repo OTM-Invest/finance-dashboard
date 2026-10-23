@@ -5,7 +5,10 @@
  * classificação a compra continua somando como fatura — por isso o total da tela nunca
  * muda ao classificar, só a distribuição.
  */
+import { Check, Sparkles, Wand2 } from "lucide-react";
+
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -36,6 +39,8 @@ interface Props {
     line: CardStatementLineRow,
     change: { managementAccountId?: string | null; costCenterId?: string | null },
   ) => void;
+  onAccept: (line: CardStatementLineRow) => void;
+  onCreateRule: (line: CardStatementLineRow) => void;
 }
 
 const NONE = "__none__";
@@ -45,10 +50,17 @@ function lineTotal(line: CardStatementLineRow): number {
   return line.line_kind === "refund" ? -gross : gross;
 }
 
-export function StatementLinesTable({ lines, groups, canEdit, onClassify }: Props) {
+export function StatementLinesTable({
+  lines,
+  groups,
+  canEdit,
+  onClassify,
+  onAccept,
+  onCreateRule,
+}: Props) {
   return (
     <div className="overflow-x-auto rounded-[var(--radius-lg)] border border-border bg-surface">
-      <table className="w-full min-w-[880px] text-sm">
+      <table className="w-full min-w-[940px] text-sm">
         <thead className="bg-surface-2/60">
           <tr className="text-2xs border-b border-border tracking-wide text-text-subtle uppercase">
             <th className="w-20 px-3 py-2.5 text-left font-medium">Data</th>
@@ -56,6 +68,9 @@ export function StatementLinesTable({ lines, groups, canEdit, onClassify }: Prop
             <th className="w-28 px-3 py-2.5 text-right font-medium">Valor</th>
             <th className="w-[260px] px-3 py-2.5 text-left font-medium">Item gerencial</th>
             <th className="w-[180px] px-3 py-2.5 text-left font-medium">Área</th>
+            <th className="w-12 px-2 py-2.5">
+              <span className="sr-only">Ações</span>
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -88,7 +103,19 @@ export function StatementLinesTable({ lines, groups, canEdit, onClassify }: Prop
                     </span>
                   )}
                   {line.line_kind === "refund" && <Badge tone="income">estorno</Badge>}
+                  {line.classification_source === "rule" && <Badge tone="default">regra</Badge>}
                 </div>
+                {line.classification_status === "suggested" && (
+                  <div className="text-2xs mt-1 flex items-center gap-1.5 text-accent">
+                    <Sparkles className="size-3 shrink-0" />
+                    <span>
+                      Sugestão da IA
+                      {line.ai_confidence != null &&
+                        ` · ${Math.round(line.ai_confidence * 100)}% de confiança`}
+                      {line.suggestion_reason && ` — ${line.suggestion_reason}`}
+                    </span>
+                  </div>
+                )}
               </td>
               <td
                 className={cn(
@@ -133,6 +160,32 @@ export function StatementLinesTable({ lines, groups, canEdit, onClassify }: Prop
                 ) : (
                   <span className="text-xs text-text-muted">—</span>
                 )}
+              </td>
+              <td className="px-2 py-1.5 text-right">
+                {canEdit && line.classification_status === "suggested" && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`Aceitar sugestão para ${line.description}`}
+                    title="Aceitar sugestão"
+                    onClick={() => onAccept(line)}
+                  >
+                    <Check className="size-3.5" />
+                  </Button>
+                )}
+                {canEdit &&
+                  line.classification_status === "confirmed" &&
+                  line.classification_source !== "rule" && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label={`Criar regra a partir de ${line.description}`}
+                      title="Criar regra para as próximas"
+                      onClick={() => onCreateRule(line)}
+                    >
+                      <Wand2 className="size-3.5" />
+                    </Button>
+                  )}
               </td>
             </tr>
           ))}

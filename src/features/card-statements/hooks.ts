@@ -3,12 +3,19 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { scopeQueryKey } from "@/features/companies/scopeQueryKey";
 
 import {
+  acceptSuggestions,
+  applyClassificationRules,
   classifyCardLine,
+  createClassificationRule,
   deleteCardStatement,
+  deleteClassificationRule,
   fetchCardStatement,
   fetchCardStatements,
+  fetchClassificationRules,
   fetchPendingInvoiceTransactions,
+  requestAiSuggestions,
   saveCardStatement,
+  setClassificationRuleActive,
 } from "./api";
 
 export const cardStatementKeys = {
@@ -16,6 +23,7 @@ export const cardStatementKeys = {
   list: (scope: string) => ["card-statements", "list", scope] as const,
   pending: (scope: string) => ["card-statements", "pending", scope] as const,
   detail: (id: string) => ["card-statements", "detail", id] as const,
+  rules: ["card-statements", "rules"] as const,
 };
 
 /** Recorte vazio = nenhuma empresa, não todas (grupo ainda carregando). */
@@ -67,4 +75,42 @@ export function useClassifyCardLine() {
 export function useDeleteCardStatement() {
   const qc = useQueryClient();
   return useMutation({ mutationFn: deleteCardStatement, onSuccess: () => invalidateAll(qc) });
+}
+
+export function useRequestAiSuggestions() {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: requestAiSuggestions, onSuccess: () => invalidateAll(qc) });
+}
+
+export function useAcceptSuggestions() {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: acceptSuggestions, onSuccess: () => invalidateAll(qc) });
+}
+
+export function useApplyClassificationRules() {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: applyClassificationRules, onSuccess: () => invalidateAll(qc) });
+}
+
+export function useClassificationRules() {
+  return useQuery({ queryKey: cardStatementKeys.rules, queryFn: fetchClassificationRules });
+}
+
+export function useCreateClassificationRule() {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: createClassificationRule, onSuccess: () => invalidateAll(qc) });
+}
+
+export function useSetClassificationRuleActive() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      setClassificationRuleActive(id, isActive),
+    onSuccess: () => invalidateAll(qc),
+  });
+}
+
+export function useDeleteClassificationRule() {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: deleteClassificationRule, onSuccess: () => invalidateAll(qc) });
 }

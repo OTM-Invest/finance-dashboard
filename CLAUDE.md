@@ -287,7 +287,8 @@ Em construção por fases (plano em
 [`docs/features/central-de-gastos-plan.md`](docs/features/central-de-gastos-plan.md)).
 Feitas: **Fase 0** (plano gerencial + mapa conta → item, `/settings/management-plan`) e
 **Fase 1** (centro de custo vira área; Balanço por filtro sobre o plano gerencial) e
-**Fase 2** (fatura de cartão aberta em compras, `/faturas`).
+**Fase 2** (fatura de cartão aberta em compras, `/faturas`) e **Fase 3** (regras de
+classificação e sugestão por IA).
 
 ⚠️ **Centro de custo É ÁREA.** `cost_centers` responde só "para qual time é o gasto"
 (Assessores, Apoio, Diretoria, Tecnologia…). "O que o gasto é" (receita, imposto, capex,
@@ -320,6 +321,11 @@ Só fatura `reconciled` — linhas fecham com o total, os subtotais por cartão 
 lançamento, conferidos pelo BANCO em `save_card_statement` — troca o lançamento pelas
 compras em `v_management_lines`. Valor de linha não se edita (trigger); para corrigir,
 apaga e reimporta. Leitor e validador têm uma implementação: `_shared/cards/`.
+
+⚠️ **Sugestão de IA não conta.** Compra de cartão com `classification_status = 'suggested'`
+aparece na tela mas soma como "Fatura de cartão" em `v_management_lines` até alguém
+aceitar. Regra (`classification_rules`) é decisão humana e conta como confirmada. A Edge
+Function `card-lines-suggest` lê e grava com o JWT de quem chamou.
 
 ## Escopo de empresa & grupos de agregação
 

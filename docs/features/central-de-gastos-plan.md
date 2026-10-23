@@ -517,6 +517,35 @@ Limites conhecidos desta fase:
   do C6; a leitura por visão é a Fase 4.
 - **Classificação é manual.** Regras por fornecedor e sugestão por IA são a Fase 3.
 
+## 11.4 Estado da Fase 3 (2026-10-23)
+
+Feito, na mesma branch, **ainda não aplicado no remoto**:
+
+- Migration `…_regras_de_classificacao`: `classification_rules` (por organização, opcional
+  por empresa; "começa com" ou "contém" sobre a descrição normalizada), 22 regras iniciais
+  com os fornecedores das faturas de set/2026, aplicação automática ao gravar a fatura e
+  RPC para reaplicar. Precedência: regra da empresa → menor prioridade → padrão mais
+  longo. Regra vence sugestão da IA; nunca sobrescreve decisão de pessoa.
+- **Só classificação confirmada conta** em `v_management_lines`: sugestão da IA fica
+  visível na tela mas a compra segue em "Fatura de cartão" até ser aceita.
+- Sugestão por IA: `_shared/cards/suggest.ts` (pedido e leitura desconfiada da resposta)
+  e Edge Function `card-lines-suggest` (Claude Opus 5.5, esforço baixo, saída em JSON
+  com schema, fallback do servidor para recusa), com o JWT de quem pede — sem service
+  role. Vai para a API só descrição, valor e moeda da compra, o nome da empresa e o
+  plano gerencial.
+- Tela da fatura: aplicar regras, sugerir com IA, aceitar (uma ou todas), criar regra a
+  partir de uma compra, revisão "a classificar primeiro, por valor". Regras em
+  `/settings/classification-rules`.
+- Teste de banco `supabase/tests/regras_de_classificacao.sql`: 23 verificações, inclusive que lançador de uma empresa não cria regra que alcance outra.
+
+Para ligar a sugestão por IA no remoto (com o dono do repo):
+
+1. `supabase secrets set ANTHROPIC_API_KEY=...` no projeto.
+2. Publicar a função `card-lines-suggest`.
+
+Sem isso a tela funciona; o botão "Sugerir com IA" responde que a IA não está
+configurada.
+
 ## 12. Decisões (tomadas em 2026-10-23)
 
 Todas seguem a recomendação do plano.

@@ -1,4 +1,4 @@
-import { supabase, type Enums } from "@/lib/supabase";
+import { supabase, type Enums, type Tables } from "@/lib/supabase";
 import type { Json } from "@/types/database";
 
 import { PARSER_VERSION, type ParsedStatement } from "./reader";
@@ -113,6 +113,10 @@ export interface CardStatementLineRow {
   management_account_id: string | null;
   cost_center_id: string | null;
   classification_status: CardLineClassification;
+  classification_source: Enums["card_classification_source"] | null;
+  ai_confidence: number | null;
+  suggestion_reason: string | null;
+  rule_id: string | null;
   card: { last4: string; holder_name: string; kind: string } | null;
 }
 
@@ -137,7 +141,8 @@ export async function fetchCardStatement(id: string): Promise<CardStatementDetai
        lines:card_statement_lines(
          id, sort_order, purchase_date, description, line_kind, amount, iof_amount, currency,
          amount_original, fx_rate, installment_n, installment_total, management_account_id,
-         cost_center_id, classification_status,
+         cost_center_id, classification_status, classification_source, ai_confidence,
+         suggestion_reason, rule_id,
          card:payment_cards(last4, holder_name, kind)
        )`,
     )
@@ -167,7 +172,8 @@ export async function classifyCardLine(input: {
       management_account_id: input.managementAccountId,
       cost_center_id: input.costCenterId,
       classification_status: input.managementAccountId ? "confirmed" : "unclassified",
-      classification_source: input.managementAccountId ? "human" : null,
+      // Limpar também é decisão de pessoa: "Aplicar regras" não reclassifica esta compra.
+      classification_source: "human",
     })
     .eq("id", input.lineId);
   if (error) throw error;
@@ -177,4 +183,109 @@ export async function classifyCardLine(input: {
 export async function deleteCardStatement(id: string): Promise<void> {
   const { error } = await supabase.rpc("delete_card_statement", { p_statement_id: id });
   if (error) throw error;
+}
+
+/* ─── Fase 3: regras e sugestão ──────────────────────────────────────────── */
+
+/** Pede à IA sugestões para as compras sem regra. Volta quantas foram sugeridas. */
+export async function requestAiSuggestions(statementId: string): Promise<number> {
+  const result = await supabase.functions.invoke<{ suggested: number; error?: string }>(
+    "card-lines-suggest",
+    { body: { statementId } },
+  );
+  if (result.error) {
+    // A função responde a falha com `{ error }` em português; o cliente do Supabase só
+    // expõe isso no corpo da resposta que vem no contexto do erro.
+    const failure = result.error as { message: string; context?: Response };
+    const body = failure.context
+      ? ((await failure.context.json().catch(() => null)) as { error?: string } | null)
+      : null;
+    throw new Error(body?.error ?? failure.message);
+  }
+  return result.data?.suggested ?? 0;
+}
+
+/** Aceitar é transformar a sugestão em decisão: a compra passa a contar no item sugerido. */
+export async function acceptSuggestions(input: {
+  statementId: string;
+  lineIds?: string[];
+}): Promise<void> {
+  let query = supabase
+    .from("card_statement_lines")
+    .update({ classification_status: "confirmed" })
+    .eq("statement_id", input.statementId)
+    .eq("classification_status", "suggested");
+  if (input.lineIds) query = query.in("id", input.lineIds);
+  const { error } = await query;
+  if (error) throw error;
+}
+
+/** Reaplica as regras numa fatura (depois de criar uma, por exemplo). */
+export async function applyClassificationRules(statementId: string): Promise<number> {
+  const { data, error } = await supabase.rpc("apply_classification_rules", {
+    p_statement_id: statementId,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export type ClassificationRule = Tables["classification_rules"]["Row"];
+export type ClassificationRuleInsert = Tables["classification_rules"]["Insert"];
+
+export async function fetchClassificationRules(): Promise<ClassificationRule[]> {
+  const { data, error } = await supabase
+    .from("classification_rules")
+    .select("*")
+    .order("name", { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function createClassificationRule(
+  payload: ClassificationRuleInsert,
+): Promise<ClassificationRule> {
+  const { data, error } = await supabase
+    .from("classification_rules")
+    .insert(payload)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function setClassificationRuleActive(id: string, isActive: boolean): Promise<void> {
+  const { error } = await supabase
+    .from("classification_rules")
+    .update({ is_active: isActive })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteClassificationRule(id: string): Promise<void> {
+  const { error } = await supabase.from("classification_rules").delete().eq("id", id);
+  if (error) throw error;
+}
+
+/**
+ * Padrão proposto para uma regra nova a partir da descrição da compra: o começo dela,
+ * pulando o prefixo de adquirente ("MP *", "PG *", "DL*") que não identifica ninguém. É
+ * só a sugestão do campo — a pessoa edita, e o banco normaliza ao gravar.
+ */
+export function proposeRulePattern(description: string): string {
+  const allTokens = description
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^A-Z0-9]+/g, " ")
+    .trim()
+    .split(" ")
+    .filter(Boolean);
+  // "… - Parcela 1/6": o que vem depois é da parcela, não do fornecedor.
+  const parcela = allTokens.indexOf("PARCELA");
+  const tokens = parcela > 0 ? allTokens.slice(0, parcela) : allTokens;
+  const ACQUIRERS = new Set(["MP", "PG", "DL", "DM", "PAG", "EBN", "HTM"]);
+  const start = tokens.length > 1 && ACQUIRERS.has(tokens[0] ?? "") ? 1 : 0;
+  const first = tokens[start] ?? "";
+  // Palavra curta sozinha casa coisa demais ("GOOGLE"): leva a seguinte junto.
+  return first.length < 6 && tokens[start + 1] ? `${first} ${tokens[start + 1]}` : first;
 }

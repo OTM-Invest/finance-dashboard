@@ -6,6 +6,7 @@ const NAV = [
   { to: "/settings/banks", label: "Contas bancárias" },
   { to: "/settings/cost-centers", label: "Áreas" },
   { to: "/settings/management-plan", label: "Plano gerencial" },
+  { to: "/settings/classification-rules", label: "Regras de classificação" },
   { to: "/settings/counterparties", label: "Contrapartes" },
   { to: "/settings/payroll", label: "Folha de pagamento" },
 ] as const;
@@ -82,6 +83,8 @@ function descricaoFor(to: string): string {
       return "Os times da organização: para quem é cada gasto.";
     case "/settings/management-plan":
       return "O que cada gasto é — pessoas, tecnologia, ocupação —, a partir da conta contábil.";
+    case "/settings/classification-rules":
+      return "Como as compras de cartão são classificadas sozinhas, pela descrição.";
     case "/settings/counterparties":
       return "Clientes, fornecedores e demais contrapartes vinculadas a lançamentos.";
     default:

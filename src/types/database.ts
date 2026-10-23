@@ -323,6 +323,7 @@ export type Database = {
       }
       card_statement_lines: {
         Row: {
+          ai_confidence: number | null
           amount: number
           amount_original: number | null
           beneficiary_company_id: string | null
@@ -348,11 +349,14 @@ export type Database = {
           management_account_id: string | null
           nature_override: Database["public"]["Enums"]["expense_nature"] | null
           purchase_date: string
+          rule_id: string | null
           sort_order: number
           statement_id: string
+          suggestion_reason: string | null
           updated_at: string
         }
         Insert: {
+          ai_confidence?: number | null
           amount: number
           amount_original?: number | null
           beneficiary_company_id?: string | null
@@ -378,11 +382,14 @@ export type Database = {
           management_account_id?: string | null
           nature_override?: Database["public"]["Enums"]["expense_nature"] | null
           purchase_date: string
+          rule_id?: string | null
           sort_order: number
           statement_id: string
+          suggestion_reason?: string | null
           updated_at?: string
         }
         Update: {
+          ai_confidence?: number | null
           amount?: number
           amount_original?: number | null
           beneficiary_company_id?: string | null
@@ -408,8 +415,10 @@ export type Database = {
           management_account_id?: string | null
           nature_override?: Database["public"]["Enums"]["expense_nature"] | null
           purchase_date?: string
+          rule_id?: string | null
           sort_order?: number
           statement_id?: string
+          suggestion_reason?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -468,6 +477,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_account_management_map"
             referencedColumns: ["management_group_id"]
+          },
+          {
+            foreignKeyName: "card_statement_lines_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "classification_rules"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "card_statement_lines_statement_id_fkey"
@@ -854,6 +870,120 @@ export type Database = {
             columns: ["parent_id"]
             isOneToOne: false
             referencedRelation: "chart_of_accounts_master"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      classification_rules: {
+        Row: {
+          beneficiary_company_id: string | null
+          company_id: string | null
+          cost_center_id: string | null
+          counterparty_id: string | null
+          created_at: string
+          created_by: string | null
+          created_from_line_id: string | null
+          id: string
+          is_active: boolean
+          management_account_id: string
+          match_kind: string
+          name: string
+          organization_id: string
+          pattern: string
+          priority: number
+          updated_at: string
+        }
+        Insert: {
+          beneficiary_company_id?: string | null
+          company_id?: string | null
+          cost_center_id?: string | null
+          counterparty_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          created_from_line_id?: string | null
+          id?: string
+          is_active?: boolean
+          management_account_id: string
+          match_kind: string
+          name: string
+          organization_id: string
+          pattern: string
+          priority?: number
+          updated_at?: string
+        }
+        Update: {
+          beneficiary_company_id?: string | null
+          company_id?: string | null
+          cost_center_id?: string | null
+          counterparty_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          created_from_line_id?: string | null
+          id?: string
+          is_active?: boolean
+          management_account_id?: string
+          match_kind?: string
+          name?: string
+          organization_id?: string
+          pattern?: string
+          priority?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "classification_rules_beneficiary_company_id_fkey"
+            columns: ["beneficiary_company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "classification_rules_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "classification_rules_cost_center_id_fkey"
+            columns: ["cost_center_id"]
+            isOneToOne: false
+            referencedRelation: "cost_centers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "classification_rules_counterparty_id_fkey"
+            columns: ["counterparty_id"]
+            isOneToOne: false
+            referencedRelation: "counterparties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "classification_rules_management_account_id_fkey"
+            columns: ["management_account_id"]
+            isOneToOne: false
+            referencedRelation: "management_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "classification_rules_management_account_id_fkey"
+            columns: ["management_account_id"]
+            isOneToOne: false
+            referencedRelation: "v_account_management_map"
+            referencedColumns: ["management_account_id"]
+          },
+          {
+            foreignKeyName: "classification_rules_management_account_id_fkey"
+            columns: ["management_account_id"]
+            isOneToOne: false
+            referencedRelation: "v_account_management_map"
+            referencedColumns: ["management_group_id"]
+          },
+          {
+            foreignKeyName: "classification_rules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -4852,6 +4982,10 @@ export type Database = {
       }
     }
     Functions: {
+      _apply_classification_rules: {
+        Args: { p_line_ids: string[] }
+        Returns: number
+      }
       _clause: {
         Args: {
           p_area_ids: string[]
@@ -4878,6 +5012,10 @@ export type Database = {
           p_charge_id: string
           p_state: Database["public"]["Enums"]["invoice_refund_state"]
         }
+        Returns: number
+      }
+      apply_classification_rules: {
+        Args: { p_statement_id: string }
         Returns: number
       }
       approve_invoice_jobs: {
@@ -5805,6 +5943,7 @@ export type Database = {
       }
       nfse_backfill_cron_invoke: { Args: never; Returns: undefined }
       nfse_cron_invoke: { Args: { p_mode?: string }; Returns: undefined }
+      normalize_card_description: { Args: { p_text: string }; Returns: string }
       pagarme_active_sync_accounts: {
         Args: never
         Returns: {
