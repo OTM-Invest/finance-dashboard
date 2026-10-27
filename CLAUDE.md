@@ -360,8 +360,10 @@ definer`, porque `employees` é do módulo de folha e a camada é `security invo
 
 ⚠️ **Item e área têm uma implementação: `v_revenue_lines`.** O espelho do CRM
 (`crm_commission_reports`/`_lines`) só é escrito pela Edge Function `crm-revenue-sync`, que
-entra no CRM como usuário de serviço (perfil só com `financeiro.receita_btg`); credencial
-em secrets, nunca no repositório.
+entra no CRM como usuário de serviço (perfil só com `financeiro.receita_btg`). Credencial
+e segredo do cron só no **Vault**, lidos por `crm_revenue_sync_config()` (só service role);
+nunca no repositório, no env da function ou no chat. Go-live:
+[`docs/features/receita-por-area-go-live.md`](docs/features/receita-por-area-go-live.md).
 
 ## Escopo de empresa & grupos de agregação
 

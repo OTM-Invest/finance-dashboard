@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import { parseLines, parseReports } from "./contract";
 import { linesResponse, REPORT_IDS, reportsResponse } from "./fixtures";
-import { buildSyncPayload, ConferenceError, defaultWindow, resolveWindow } from "./sync";
+import {
+  buildSyncPayload,
+  ConferenceError,
+  defaultWindow,
+  readSyncConfig,
+  resolveWindow,
+} from "./sync";
 
 const data = { reports: parseReports(reportsResponse), lines: parseLines(linesResponse) };
 
@@ -55,5 +61,38 @@ describe("payload da sincronização", () => {
     expect(() => buildSyncPayload(broken)).toThrow(
       /finder 2026-07 finder-jul-ago: linhas 300\.50 × total 300\.49/,
     );
+  });
+});
+
+describe("configuração no Vault", () => {
+  const full = {
+    crm_revenue_sync_secret: "s",
+    crm_supabase_url: "https://crm.example/",
+    crm_supabase_anon_key: "anon",
+    crm_sync_email: "servico@crm",
+    crm_sync_password: "senha",
+  };
+
+  it("monta a configuração do CRM, sem barra no fim da URL", () => {
+    expect(readSyncConfig(full)).toEqual({
+      ok: true,
+      syncSecret: "s",
+      crm: { url: "https://crm.example", anonKey: "anon", email: "servico@crm", password: "senha" },
+    });
+  });
+
+  it("diz quais nomes faltam, sem ecoar os valores presentes", () => {
+    const result = readSyncConfig({ ...full, crm_sync_password: " ", crm_sync_email: undefined });
+    expect(result).toEqual({
+      ok: false,
+      syncSecret: "s",
+      missing: ["crm_sync_email", "crm_sync_password"],
+    });
+    expect(JSON.stringify(result)).not.toContain("anon");
+  });
+
+  it("Vault vazio ou resposta estranha = tudo faltando", () => {
+    expect(readSyncConfig(null)).toMatchObject({ ok: false, syncSecret: null });
+    expect(readSyncConfig([])).toMatchObject({ ok: false });
   });
 });

@@ -6098,6 +6098,7 @@ export type Database = {
         Args: { p_from?: string; p_requested_by?: string; p_to?: string }
         Returns: boolean
       }
+      crm_revenue_sync_config: { Args: never; Returns: Json }
       crm_sync_run_finish: {
         Args: { p_error?: string; p_result: Json; p_run_id: string }
         Returns: undefined

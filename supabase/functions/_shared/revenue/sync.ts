@@ -6,10 +6,49 @@
  *  - o payload de `crm_commission_sync_apply`, no formato snake_case do banco.
  */
 
-import type { CrmCommission } from "./client.ts";
+import type { CrmCommission, CrmConfig } from "./client.ts";
 import { checkReports, type ReportCheck } from "./conference.ts";
 
 const MONTH = /^\d{4}-\d{2}-01$/;
+
+/** Nomes no Vault do financeiro. Os valores nunca passam por repositório nem chat. */
+export const VAULT_NAMES = {
+  syncSecret: "crm_revenue_sync_secret",
+  url: "crm_supabase_url",
+  anonKey: "crm_supabase_anon_key",
+  email: "crm_sync_email",
+  password: "crm_sync_password",
+} as const;
+
+export type SyncConfig =
+  | { ok: true; syncSecret: string; crm: CrmConfig }
+  | { ok: false; syncSecret: string | null; missing: string[] };
+
+/**
+ * Lê o que `crm_revenue_sync_config()` devolveu. Faltando algo, diz QUAIS nomes faltam
+ * no Vault — nunca o valor dos que existem.
+ */
+export function readSyncConfig(raw: unknown): SyncConfig {
+  const values = raw !== null && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+  const get = (name: string): string | null => {
+    const v = (values as Record<string, unknown>)[name];
+    return typeof v === "string" && v.trim().length > 0 ? v.trim() : null;
+  };
+  const syncSecret = get(VAULT_NAMES.syncSecret);
+  const url = get(VAULT_NAMES.url);
+  const anonKey = get(VAULT_NAMES.anonKey);
+  const email = get(VAULT_NAMES.email);
+  const password = get(VAULT_NAMES.password);
+  const missing = Object.values(VAULT_NAMES).filter((name) => get(name) === null);
+  if (!syncSecret || !url || !anonKey || !email || !password) {
+    return { ok: false, syncSecret, missing };
+  }
+  return {
+    ok: true,
+    syncSecret,
+    crm: { url: url.replace(/\/+$/, ""), anonKey, email, password },
+  };
+}
 
 /** Primeiro dia do mês, `months` meses antes de `today` (UTC), e o do mês corrente. */
 export function defaultWindow(today: Date, months = 6): { from: string; to: string } {

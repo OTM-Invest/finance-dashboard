@@ -1551,11 +1551,14 @@ comment on function public.revenue_breakdown_multi(date, date, public.accounting
 -- =============================================================================
 -- 11) Sincronização: cron diário e o botão "Sincronizar agora"
 --
--- Mesmo desenho de `pagarme_cron_invoke`: URL e segredo no Vault, ausentes = no-op
--- (local). As credenciais do usuário de serviço do CRM ficam nos secrets da Edge
--- Function, nunca aqui.
+-- Mesmo desenho de `pagarme_cron_invoke`: tudo no Vault, ausente = no-op (local).
+-- Nada disto passa por migration, repositório ou chat — o dono grava direto no Vault:
 --   `crm_revenue_sync_url`    = https://<ref>.supabase.co/functions/v1/crm-revenue-sync
---   `crm_revenue_sync_secret` = mesmo valor de CRM_SYNC_SECRET (env da function)
+--   `crm_revenue_sync_secret` = segredo que o cron manda e a function confere
+--   `crm_supabase_url`        = https://<ref do CRM>.supabase.co
+--   `crm_supabase_anon_key`   = chave anon (publishable) do CRM
+--   `crm_sync_email`          = e-mail do usuário de serviço do CRM
+--   `crm_sync_password`       = senha dele
 -- =============================================================================
 create or replace function public.crm_revenue_cron_invoke(
   p_from date default null,
@@ -1587,6 +1590,26 @@ end;
 $$;
 
 revoke all on function public.crm_revenue_cron_invoke(date, date, uuid) from public, anon, authenticated;
+
+-- O que a Edge Function precisa do Vault, numa leitura só. Só service role executa:
+-- a senha do usuário de serviço do CRM nunca chega a quem usa a tela.
+create or replace function public.crm_revenue_sync_config()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(jsonb_object_agg(name, decrypted_secret), '{}'::jsonb)
+  from vault.decrypted_secrets
+  where name in (
+    'crm_revenue_sync_secret', 'crm_supabase_url', 'crm_supabase_anon_key',
+    'crm_sync_email', 'crm_sync_password'
+  );
+$$;
+
+revoke all on function public.crm_revenue_sync_config() from public, anon, authenticated;
+grant execute on function public.crm_revenue_sync_config() to service_role;
 
 -- O botão: admin/editor de alguma empresa que recebe relatório. Devolve false se a
 -- sincronização não estiver configurada neste ambiente.

@@ -100,10 +100,15 @@ A tela reexporta de `src/features/revenue/compute.ts`.
 ### Edge Function — `crm-revenue-sync`
 
 `verify_jwt = false`, origem pelo segredo `x-sync-secret` (comparação em tempo constante).
-Secrets: `CRM_SUPABASE_URL`, `CRM_SUPABASE_ANON_KEY`, `CRM_SYNC_EMAIL`,
-`CRM_SYNC_PASSWORD`, `CRM_SYNC_SECRET`. Testada localmente ponta a ponta contra um CRM
-falso com as fixtures: login, paginação de 3 em 3, idempotência (2ª rodada `unchanged`),
-período inválido e senha errada (erro gravado sem a senha).
+**Sem variável de ambiente própria**: o segredo do cron, a URL e a chave anon do CRM e o
+e-mail e a senha do usuário de serviço vêm do **Vault** do financeiro, numa leitura só por
+`crm_revenue_sync_config()` (só service role executa). Nomes: `crm_revenue_sync_url`,
+`crm_revenue_sync_secret`, `crm_supabase_url`, `crm_supabase_anon_key`, `crm_sync_email`,
+`crm_sync_password`. Faltando algum, a execução falha dizendo QUAIS nomes faltam.
+Testada localmente ponta a ponta, com o Vault local e um CRM falso com as fixtures: Vault
+vazio (503), segredo errado (401), credencial incompleta (erro com os nomes que faltam),
+login, paginação de 3 em 3, idempotência (2ª rodada `unchanged`), período inválido e senha
+errada (erro gravado sem a senha).
 
 ### Tela — `/receita` (menu "Receita por área")
 
@@ -144,26 +149,20 @@ bun run preflight
 
 Ponta a ponta da sincronização (local): suba um servidor que responda
 `/auth/v1/token` e `/rest/v1/rpc/finance_commission_report[_lines]` com as fixtures de
-`_shared/revenue/fixtures.ts`, aponte `CRM_SUPABASE_URL` para
-`http://host.docker.internal:<porta>` num env file e rode
-`supabase functions serve crm-revenue-sync --env-file <arquivo>`.
+`_shared/revenue/fixtures.ts`, grave no Vault LOCAL os seis nomes (§3, com
+`crm_supabase_url` = `http://host.docker.internal:<porta>`) por `vault.create_secret`, rode
+`supabase functions serve crm-revenue-sync` e chame com o header `x-sync-secret`.
 
 ## 6. O que falta
 
 ### 6.1 Go-live (com o dono)
 
-1. **No CRM**: criar o perfil com só `financeiro.receita_btg` e o usuário de serviço nele.
-   A senha vai direto para os secrets do financeiro, sem passar por repositório ou chat.
-2. **No financeiro**: `supabase secrets set CRM_SUPABASE_URL=… CRM_SUPABASE_ANON_KEY=…
-CRM_SYNC_EMAIL=… CRM_SYNC_PASSWORD=… CRM_SYNC_SECRET=…`; no Vault,
-   `crm_revenue_sync_url` e `crm_revenue_sync_secret` (= `CRM_SYNC_SECRET`).
-3. `bun run db:push` (depois do PR) e publicar `crm-revenue-sync`.
-4. Aba Sincronização: conferir as rotas (PJ1 → Assessoria; PJ2 e finder → Corretora) e
-   "Sincronizar agora" com o período de 2026.
-5. Aba Assessores: confirmar a ligação código → colaborador (tabela em §7).
-6. Aba Conferência: abrir os lançamentos de 2026; aceitar (ou investigar) os resíduos
-   conhecidos — jan/26 +3.885, fev/26 +3.938, abr/26 −7.868, set/26 +3.045.
-7. Montar no Balanço o modelo de margem por área.
+Passo a passo, com conferência e como voltar atrás em cada etapa:
+[`receita-por-area-go-live.md`](receita-por-area-go-live.md). Em resumo: merge do PR →
+`db:push` → publicar `crm-revenue-sync` → perfil e usuário de serviço no CRM (aprovados
+pelo dono em 27/10/2026; a sessão do CRM cria) → seis segredos no Vault → rotas →
+primeira sincronização conferida contra o CRM → ligar códigos → abrir os lançamentos →
+margem no Balanço.
 
 ### 6.2 Pendências
 

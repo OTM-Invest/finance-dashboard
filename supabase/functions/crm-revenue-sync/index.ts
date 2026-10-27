@@ -12,9 +12,12 @@
  * Wrapper fino: contrato, conferência e payload são puros (`_shared/revenue/*`, Vitest).
  *
  * Segurança:
- *   · no CRM, entra como o USUÁRIO DE SERVIÇO (perfil só com `financeiro.receita_btg`):
- *     e-mail e senha em secrets (`CRM_SYNC_EMAIL`, `CRM_SYNC_PASSWORD`), nunca no
- *     repositório nem no log; nada de service role do CRM;
+ *   · no CRM, entra como o USUÁRIO DE SERVIÇO (perfil só com `financeiro.receita_btg`).
+ *     URL, chave anon, e-mail e senha ficam no VAULT do financeiro (nomes em
+ *     `VAULT_NAMES`), lidos por `crm_revenue_sync_config()` — só service role executa.
+ *     Nunca no repositório, no env da function nem no log; nada de service role do CRM;
+ *   · o segredo `x-sync-secret` também é o do Vault: o cron manda o mesmo valor que a
+ *     function confere, sem cópia em outro lugar;
  *   · aqui, grava com service role, mas só pela RPC `crm_commission_sync_apply`, que
  *     confere de novo soma × total antes de escrever;
  *   · relatório que não fecha barra a sincronização INTEIRA — nada é gravado pela metade;
@@ -24,19 +27,11 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-import { fetchCommission, type CrmConfig } from "../_shared/revenue/client.ts";
-import { buildSyncPayload, resolveWindow } from "../_shared/revenue/sync.ts";
+import { fetchCommission } from "../_shared/revenue/client.ts";
+import { buildSyncPayload, readSyncConfig, resolveWindow } from "../_shared/revenue/sync.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const SYNC_SECRET = Deno.env.get("CRM_SYNC_SECRET") ?? "";
-
-const CRM: CrmConfig = {
-  url: (Deno.env.get("CRM_SUPABASE_URL") ?? "").replace(/\/+$/, ""),
-  anonKey: Deno.env.get("CRM_SUPABASE_ANON_KEY") ?? "",
-  email: Deno.env.get("CRM_SYNC_EMAIL") ?? "",
-  password: Deno.env.get("CRM_SYNC_PASSWORD") ?? "",
-};
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -59,7 +54,15 @@ function errorMessage(error: unknown): string {
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "Método não permitido" }, 405);
-  if (!sameSecret(req.headers.get("x-sync-secret") ?? "", SYNC_SECRET)) {
+
+  const db = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+
+  const { data: rawConfig, error: configError } = await db.rpc("crm_revenue_sync_config");
+  if (configError) return json({ error: configError.message }, 500);
+  const config = readSyncConfig(rawConfig);
+  // Sem segredo no Vault, ninguém entra — nem para saber o que mais falta.
+  if (!config.syncSecret) return json({ error: "Sincronização não configurada" }, 503);
+  if (!sameSecret(req.headers.get("x-sync-secret") ?? "", config.syncSecret)) {
     return json({ error: "Não autorizado" }, 401);
   }
 
@@ -77,8 +80,6 @@ Deno.serve(async (req) => {
     return json({ error: errorMessage(error) }, 400);
   }
   const requestedBy = typeof body.requestedBy === "string" ? body.requestedBy : null;
-
-  const db = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
   // A organização é a das rotas: o CRM é de um escritório só.
   const { data: routes, error: routesError } = await db
@@ -108,15 +109,14 @@ Deno.serve(async (req) => {
   const finish = (result: unknown, error: string | null) =>
     db.rpc("crm_sync_run_finish", { p_run_id: runId, p_result: result ?? {}, p_error: error });
 
-  if (!CRM.url || !CRM.anonKey || !CRM.email || !CRM.password) {
-    const message =
-      "Credencial do CRM não configurada (CRM_SUPABASE_URL, CRM_SUPABASE_ANON_KEY, CRM_SYNC_EMAIL, CRM_SYNC_PASSWORD)";
+  if (!config.ok) {
+    const message = `Credencial do CRM incompleta no Vault — falta: ${config.missing.join(", ")}`;
     await finish({}, message);
     return json({ error: message }, 503);
   }
 
   try {
-    const commission = await fetchCommission(fetch, CRM, window.from, window.to);
+    const commission = await fetchCommission(fetch, config.crm, window.from, window.to);
     const payload = buildSyncPayload(commission);
     const { data: applied, error: applyError } = await db.rpc("crm_commission_sync_apply", {
       p_organization_id: organizationId,
