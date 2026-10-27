@@ -128,7 +128,32 @@ export interface CrmCommission {
   lines: CrmReportLine[];
 }
 
-/** Relatórios e detalhe do intervalo de meses (dia 1 de cada ponta, inclusive). */
+/** Meses (dia 1) de `from` a `to`, inclusive. */
+export function monthsBetween(from: string, to: string): string[] {
+  const months: string[] = [];
+  let [y, m] = from.split("-").map(Number);
+  const [ty, tm] = to.split("-").map(Number);
+  while (y < ty || (y === ty && m <= tm)) {
+    months.push(`${y}-${String(m).padStart(2, "0")}-01`);
+    m += 1;
+    if (m > 12) {
+      m = 1;
+      y += 1;
+    }
+  }
+  return months;
+}
+
+/**
+ * Relatórios e detalhe do intervalo de meses (dia 1 de cada ponta, inclusive).
+ *
+ * O detalhe vem UM MÊS POR CHAMADA, em sequência. A RPC do CRM agrega `revenues`
+ * (milhões de linhas) e cada página do `limit/offset` refaz a agregação do intervalo
+ * inteiro: 13 meses de uma vez passaram do `statement_timeout` de 8s do papel
+ * `authenticated` do CRM em 27/10/2026, e seis meses passavam por pouco. Um mês cabe em
+ * uma página e numa fração do tempo. A lista de relatórios (um registro por arquivo) é
+ * barata e continua numa chamada só.
+ */
 export async function fetchCommission(
   fetchFn: Fetch,
   config: CrmConfig,
@@ -136,17 +161,25 @@ export async function fetchCommission(
   to: string,
 ): Promise<CrmCommission> {
   const token = await signIn(fetchFn, config);
-  const args = { p_from: from, p_to: to };
-  const [reports, lines] = await Promise.all([
-    rpcAll(fetchFn, config, token, "finance_commission_report", args, "report_id"),
-    rpcAll(
+  const reports = await rpcAll(
+    fetchFn,
+    config,
+    token,
+    "finance_commission_report",
+    { p_from: from, p_to: to },
+    "report_id",
+  );
+  const lines: unknown[] = [];
+  for (const month of monthsBetween(from, to)) {
+    const page = await rpcAll(
       fetchFn,
       config,
       token,
       "finance_commission_report_lines",
-      args,
+      { p_from: month, p_to: month },
       "report_id,advisor_code,category,product,type",
-    ),
-  ]);
+    );
+    lines.push(...page);
+  }
   return { reports: parseReports(reports), lines: parseLines(lines) };
 }

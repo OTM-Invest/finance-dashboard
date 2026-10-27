@@ -85,15 +85,15 @@ finance_commission_report[_lines]  ──login──▶  crm-revenue-sync (Edge 
 
 ### Regras — `supabase/functions/_shared/revenue/`
 
-| Arquivo         | O que faz                                                                                                              |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `contract.ts`   | Valida as respostas das duas RPCs do CRM; `CRM_BUCKET_ADVISOR_CODE`.                                                   |
-| `conference.ts` | Soma em decimal exato (bigint 10⁻¹⁰), arredonda como o `round` do Postgres; confere relatório × linhas.                |
-| `client.ts`     | Login do usuário de serviço e RPC paginada com `count=exact` (o `max_rows` corta sem erro); 42501 vira mensagem clara. |
-| `sync.ts`       | Janela padrão (6 meses), conferência que barra tudo, payload do banco.                                                 |
-| `match.ts`      | Sugestão lançamento ↔ grupo de relatórios (empresa × tipo × mês; finder cobre o período; menor diferença, ≤ 2%).       |
-| `advisors.ts`   | Sugestão colaborador ← nome do CRM (primeiro nome + sobrenome, 1 letra de tolerância).                                 |
-| `breakdown.ts`  | Totais, por área, por item, por assessor (balde marcado).                                                              |
+| Arquivo         | O que faz                                                                                                                                                                                                                                                                                                    |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `contract.ts`   | Valida as respostas das duas RPCs do CRM; `CRM_BUCKET_ADVISOR_CODE`.                                                                                                                                                                                                                                         |
+| `conference.ts` | Soma em decimal exato (bigint 10⁻¹⁰), arredonda como o `round` do Postgres; confere relatório × linhas.                                                                                                                                                                                                      |
+| `client.ts`     | Login do usuário de serviço; lista de relatórios numa chamada e o detalhe **um mês por chamada** (a RPC do CRM agrega milhões de linhas: 13 meses de uma vez estouraram o `statement_timeout` de 8s em 27/10/2026); RPC paginada com `count=exact` (o `max_rows` corta sem erro); 42501 vira mensagem clara. |
+| `sync.ts`       | Janela padrão (6 meses), conferência que barra tudo, payload do banco.                                                                                                                                                                                                                                       |
+| `match.ts`      | Sugestão lançamento ↔ grupo de relatórios (empresa × tipo × mês; finder cobre o período; menor diferença, ≤ 2%).                                                                                                                                                                                             |
+| `advisors.ts`   | Sugestão colaborador ← nome do CRM (primeiro nome + sobrenome, 1 letra de tolerância).                                                                                                                                                                                                                       |
+| `breakdown.ts`  | Totais, por área, por item, por assessor (balde marcado).                                                                                                                                                                                                                                                    |
 
 A tela reexporta de `src/features/revenue/compute.ts`.
 

@@ -2,7 +2,14 @@ import { describe, expect, it, vi } from "vitest";
 
 import { nameScore, suggestEmployee } from "./advisors";
 import { fromRpc, revenueByAdvisor, revenueByArea, revenueTotals } from "./breakdown";
-import { CrmError, fetchCommission, rpcAll, type CrmConfig, type Fetch } from "./client";
+import {
+  CrmError,
+  fetchCommission,
+  monthsBetween,
+  rpcAll,
+  type CrmConfig,
+  type Fetch,
+} from "./client";
 import { checkReports, sumToCents, toCents, toScaled } from "./conference";
 import { ContractError, parseLines, parseReports } from "./contract";
 import { linesResponse, REPORT_IDS, reportsResponse } from "./fixtures";
@@ -104,6 +111,19 @@ function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   });
 }
 
+describe("meses da janela", () => {
+  it("lista os meses inclusive, virando o ano", () => {
+    expect(monthsBetween("2025-11-01", "2026-02-01")).toEqual([
+      "2025-11-01",
+      "2025-12-01",
+      "2026-01-01",
+      "2026-02-01",
+    ]);
+    expect(monthsBetween("2026-09-01", "2026-09-01")).toEqual(["2026-09-01"]);
+    expect(monthsBetween("2026-10-01", "2026-09-01")).toEqual([]);
+  });
+});
+
 describe("cliente do CRM", () => {
   it("pagina até o fim e confere o total anunciado", async () => {
     const all = Array.from({ length: 5 }, (_, i) => ({ i }));
@@ -151,16 +171,24 @@ describe("cliente do CRM", () => {
     );
   });
 
-  it("faz login com o usuário de serviço e lê as duas RPCs", async () => {
-    const fetchFn = vi.fn<Fetch>(async (url) => {
+  /** CRM falso: o detalhe respeita o mês pedido, como a RPC de verdade. */
+  function fakeCrm() {
+    return vi.fn<Fetch>(async (url, init) => {
       if (url.includes("/auth/v1/token")) return jsonResponse({ access_token: "jwt-servico" });
+      const args = JSON.parse(String(init?.body)) as { p_from: string; p_to: string };
       const body = url.includes("finance_commission_report_lines")
-        ? linesResponse
+        ? linesResponse.filter(
+            (l) => l.reference_month >= args.p_from && l.reference_month <= args.p_to,
+          )
         : reportsResponse;
       return jsonResponse(body, {
         headers: { "content-range": `0-${body.length - 1}/${body.length}` },
       });
     });
+  }
+
+  it("faz login com o usuário de serviço e lê as duas RPCs", async () => {
+    const fetchFn = fakeCrm();
     const { reports, lines } = await fetchCommission(fetchFn, config, "2026-07-01", "2026-09-01");
     expect(reports).toHaveLength(3);
     expect(lines).toHaveLength(8);
@@ -169,6 +197,40 @@ describe("cliente do CRM", () => {
       email: "servico@crm",
       password: "segredo",
     });
+  });
+
+  it("pede o detalhe um mês por chamada, e a lista de relatórios de uma vez", async () => {
+    const fetchFn = fakeCrm();
+    await fetchCommission(fetchFn, config, "2026-07-01", "2026-09-01");
+    const calls = fetchFn.mock.calls
+      .filter(([url]) => url.includes("/rest/v1/rpc/"))
+      .map(([url, init]) => [
+        new URL(url).pathname.split("/").pop(),
+        JSON.parse(String(init?.body)),
+      ]);
+    expect(calls).toEqual([
+      ["finance_commission_report", { p_from: "2026-07-01", p_to: "2026-09-01" }],
+      ["finance_commission_report_lines", { p_from: "2026-07-01", p_to: "2026-07-01" }],
+      ["finance_commission_report_lines", { p_from: "2026-08-01", p_to: "2026-08-01" }],
+      ["finance_commission_report_lines", { p_from: "2026-09-01", p_to: "2026-09-01" }],
+    ]);
+  });
+
+  it("um mês que falha derruba a leitura inteira", async () => {
+    const ok = fakeCrm();
+    const fetchFn: Fetch = async (url, init) => {
+      const args = init?.body ? (JSON.parse(String(init.body)) as { p_from?: string }) : {};
+      if (url.includes("_lines") && args.p_from === "2026-08-01") {
+        return jsonResponse(
+          { code: "57014", message: "canceling statement due to statement timeout" },
+          { status: 500 },
+        );
+      }
+      return ok(url, init);
+    };
+    await expect(fetchCommission(fetchFn, config, "2026-07-01", "2026-09-01")).rejects.toThrow(
+      /statement timeout \(57014\)/,
+    );
   });
 
   it("login recusado não ecoa a senha", async () => {
