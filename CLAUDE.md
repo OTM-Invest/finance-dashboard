@@ -336,6 +336,35 @@ aparece na tela mas soma como "Fatura de cartão" em `v_management_lines` até a
 aceitar. Regra (`classification_rules`) é decisão humana e conta como confirmada. A Edge
 Function `card-lines-suggest` lê e grava com o JWT de quem chamou.
 
+## Receita por área (BTG × CRM)
+
+O lançamento mensal do BTG (PJ1 na Assessoria; PJ2 e finder na Corretora) é aberto em
+assessor × produto pelos relatórios de comissão do CRM, como a fatura de cartão abre em
+compras. **Estado, decisões e o que falta:**
+[`docs/features/receita-por-area.md`](docs/features/receita-por-area.md) — leia primeiro.
+
+⚠️ **Só `reconciled` entra no Balanço**, e só com as linhas somando o lançamento ao
+centavo. Relatório × nota divergente vira linha "Diferença relatório × nota" (sem área),
+que só conta depois que alguém a aceita por escrito (`accept_revenue_statement_difference`).
+Lançamento ou relatório do CRM que muda depois devolve o statement à conferência.
+
+⚠️ **O cliente manda a escolha (lançamento + relatórios), o banco faz a conta**
+(`save_revenue_statement`). Comissão do CRM vem SEM arredondar: soma-se cru e arredonda-se
+no fim; as linhas usam maior resto por relatório. Arredondar linha a linha erra 88 de 146
+relatórios.
+
+⚠️ **Assessor liga ao colaborador pelo código** (`employees.btg_advisor_code`), nunca pelo
+nome. Área = área ATUAL do colaborador, lida na hora por `btg_advisor_areas()` (`security
+definer`, porque `employees` é do módulo de folha e a camada é `security invoker`). O código
+**1056306** é o balde do CRM e é recusado: a receita dele fica sem área, à vista.
+
+⚠️ **Item e área têm uma implementação: `v_revenue_lines`.** O espelho do CRM
+(`crm_commission_reports`/`_lines`) só é escrito pela Edge Function `crm-revenue-sync`, que
+entra no CRM como usuário de serviço (perfil só com `financeiro.receita_btg`). Credencial
+e segredo do cron só no **Vault**, lidos por `crm_revenue_sync_config()` (só service role);
+nunca no repositório, no env da function ou no chat. Go-live:
+[`docs/features/receita-por-area-go-live.md`](docs/features/receita-por-area-go-live.md).
+
 ## Escopo de empresa & grupos de agregação
 
 O seletor superior tem **três** formas de escopo, não duas: uma empresa, `Consolidado`
