@@ -307,3 +307,10 @@ where r.company_id = '00000000-0000-0000-0000-000000000014' and r.kind = 'darf_c
 -- deve avisar até alguém conferir.
 update public.tax_rules set base_date_basis_confirmed = true
  where company_id = '00000000-0000-0000-0000-000000000011';
+
+-- Receita do BTG: que empresa recebe cada relatório de comissão (receita-por-area.md).
+-- Em produção, configurado na tela /receita → Sincronização.
+insert into public.btg_report_routes (organization_id, kind, company_id) values
+  ('00000000-0000-0000-0000-000000000001', 'pj1',    '00000000-0000-0000-0000-000000000011'),
+  ('00000000-0000-0000-0000-000000000001', 'pj2',    '00000000-0000-0000-0000-000000000012'),
+  ('00000000-0000-0000-0000-000000000001', 'finder', '00000000-0000-0000-0000-000000000012');
