@@ -6,7 +6,7 @@
 --   · as linhas do statement somam o total do relatório AO CENTAVO (maior resto), mesmo
 --     quando arredondar linha a linha não somaria;
 --   · statement conferido SUBSTITUI o lançamento na camada gerencial, com o mesmo líquido;
---   · item pelo de-para, área pela área ATUAL do colaborador do código; balde 1056306 e
+--   · item pelo de-para, área pela área ATUAL do colaborador do código; linha sem assessor (SEM_CODIGO) e
 --     código sem colaborador ficam sem área;
 --   · relatório × nota divergente grava a linha de diferença e só conta depois de aceita;
 --   · lançamento ou relatório que muda depois volta o statement para conferência.
@@ -97,10 +97,16 @@ begin
   insert into employees (company_id, cost_center_id, full_name, base_salary, hire_date, btg_advisor_code)
   values (v_assessoria, v_area_b, 'Kaio Teste', 0, '2020-01-01', '57253873');
 
-  perform pg_temp.check('código 1056306 (balde do CRM) é recusado',
+  -- 1056306 é o Leandro: o CRM manda a linha sem dono como SEM_CODIGO, e esse rótulo
+  -- não cabe na coluna (só dígitos).
+  perform pg_temp.check('código 1056306 (Leandro) é aceito',
     pg_temp.raises(format(
       'insert into employees (company_id, full_name, base_salary, hire_date, btg_advisor_code) values (%L, %L, 0, %L, %L)',
-      v_assessoria, 'Leandro Teste', '2020-01-01', '1056306')), 'recusou');
+      v_assessoria, 'Leandro Teste', '2020-01-01', '1056306')), 'não recusou');
+  perform pg_temp.check('SEM_CODIGO não se liga a colaborador',
+    pg_temp.raises(format(
+      'insert into employees (company_id, full_name, base_salary, hire_date, btg_advisor_code) values (%L, %L, 0, %L, %L)',
+      v_assessoria, 'Ninguém', '2020-01-01', 'SEM_CODIGO')), 'recusou');
   perform pg_temp.check('código repetido na organização é recusado',
     pg_temp.raises(format(
       'insert into employees (company_id, full_name, base_salary, hire_date, btg_advisor_code) values (%L, %L, 0, %L, %L)',
@@ -131,7 +137,7 @@ begin
       'category', 'FUNDOS', 'product', 'MULTIMERCADOS', 'type', 'Taxa Adm.', 'commission', 0.335, 'revenue', 1, 'net_revenue', 1, 'row_count', 1),
     jsonb_build_object('report_id', v_report, 'advisor_code', '57253873', 'advisor_name', 'Kaio CRM', 'advisor_active', true,
       'category', 'FUNDOS', 'product', 'RENDA FIXA', 'type', 'Taxa Adm.', 'commission', 0.335, 'revenue', 1, 'net_revenue', 1, 'row_count', 1),
-    jsonb_build_object('report_id', v_report, 'advisor_code', '1056306', 'advisor_name', 'Leandro CRM', 'advisor_active', true,
+    jsonb_build_object('report_id', v_report, 'advisor_code', 'SEM_CODIGO', 'advisor_name', 'Sem assessor CRM', 'advisor_active', null,
       'category', 'RENDA VARIAVEL', 'product', 'BOLSA', 'type', 'Corretagem', 'commission', 5.003, 'revenue', 10, 'net_revenue', 9, 'row_count', 1),
     jsonb_build_object('report_id', v_report, 'advisor_code', '99999', 'advisor_name', 'Sem cadastro', 'advisor_active', false,
       'category', 'CATEGORIA NOVA', 'product', 'X', 'type', 'Y', 'commission', 2.001, 'revenue', 2, 'net_revenue', 2, 'row_count', 1));
@@ -201,8 +207,8 @@ begin
     (select ma.code || ':' || v.direction::text || ':' || v.amount from v_management_lines v
      join management_accounts ma on ma.id = v.management_account_id
      where v.transaction_id = v_tx and v.description like '%FEE DE PLATAFORMA%'), 'receitas.btg_deducoes:outflow:10.00');
-  perform pg_temp.check('balde 1056306 fica sem área',
-    (select cost_center_id from v_management_lines where transaction_id = v_tx and description like 'Leandro CRM%'),
+  perform pg_temp.check('linha sem assessor (SEM_CODIGO) fica sem área',
+    (select cost_center_id from v_management_lines where transaction_id = v_tx and description like 'Sem assessor CRM%'),
     null::uuid);
   perform pg_temp.check('combinação sem regra cai em Outras e é marcada',
     (select ma.code || ':' || r.is_unmapped from v_revenue_lines r join management_accounts ma on ma.id = r.management_account_id

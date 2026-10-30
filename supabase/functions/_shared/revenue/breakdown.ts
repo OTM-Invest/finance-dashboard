@@ -71,9 +71,9 @@ export function fromRpc(rows: readonly RevenueRpcRow[]): RevenueRow[] {
 
 export interface RevenueTotals {
   total: number;
-  /** Receita de linha detalhada sem área: código sem colaborador ou o balde do CRM. */
+  /** Receita de linha detalhada sem área: código sem colaborador ou linha sem assessor. */
   withoutArea: number;
-  /** Só a parte do balde 1056306 dentro de `withoutArea`. */
+  /** Só a parte sem dono (`SEM_CODIGO`) dentro de `withoutArea`. */
   bucket: number;
   /** Diferença relatório × nota aceita (D1). */
   difference: number;

@@ -356,7 +356,9 @@ relatórios.
 ⚠️ **Assessor liga ao colaborador pelo código** (`employees.btg_advisor_code`), nunca pelo
 nome. Área = área ATUAL do colaborador, lida na hora por `btg_advisor_areas()` (`security
 definer`, porque `employees` é do módulo de folha e a camada é `security invoker`). O código
-**1056306** é o balde do CRM e é recusado: a receita dele fica sem área, à vista.
+**1056306** é o Leandro (liga normalmente); a linha sem assessor vem do CRM como
+**`SEM_CODIGO`** — não cabe em `btg_advisor_code`, que só aceita dígitos — e fica sem área,
+à vista.
 
 ⚠️ **Item e área têm uma implementação: `v_revenue_lines`.** O espelho do CRM
 (`crm_commission_reports`/`_lines`) só é escrito pela Edge Function `crm-revenue-sync`, que
