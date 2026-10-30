@@ -392,8 +392,8 @@ describe("receita por área e assessor", () => {
       company_id: "c",
       management_account_id: "seguros",
       cost_center_id: null,
-      advisor_code: "1056306",
-      advisor_name: "Leandro",
+      advisor_code: "SEM_CODIGO",
+      advisor_name: null,
       employee_id: null,
       employee_name: null,
       line_kind: "detail",
@@ -447,12 +447,22 @@ describe("receita por área e assessor", () => {
     ]);
   });
 
-  it("por assessor soma o líquido e marca o balde", () => {
+  it("por assessor soma o líquido e marca a linha sem assessor", () => {
     const advisors = revenueByAdvisor(rows);
     expect(advisors.map((a) => [a.advisorCode, a.amount, a.isBucket])).toEqual([
       ["1", 900, false],
-      ["1056306", 50, true],
+      ["SEM_CODIGO", 50, true],
       ["777", 30, false],
     ]);
+  });
+
+  it("1056306 é o Leandro, não a linha sem assessor", () => {
+    const leandro = rows.map((r) =>
+      r.advisorCode === "SEM_CODIGO" ? { ...r, advisorCode: "1056306", advisorName: "Leandro" } : r,
+    );
+    expect(revenueByAdvisor(leandro).find((a) => a.advisorCode === "1056306")?.isBucket).toBe(
+      false,
+    );
+    expect(revenueTotals(leandro).bucket).toBe(0);
   });
 });

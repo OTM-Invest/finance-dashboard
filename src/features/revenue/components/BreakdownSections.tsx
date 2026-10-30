@@ -50,8 +50,8 @@ export function RevenueSummary({ totals }: { totals: RevenueTotals }) {
       ))}
       {totals.bucket !== 0 && (
         <p className="col-span-full text-xs text-text-muted">
-          <Money value={totals.bucket} /> do “sem área” é do código 1056306 — o balde do CRM para
-          assessor desconhecido. Não dá para separar hoje o que é do Leandro do que caiu ali.
+          <Money value={totals.bucket} /> do “sem área” veio do BTG sem código de assessor, ou com
+          um código que não existe no CRM.
         </p>
       )}
     </div>
@@ -130,7 +130,7 @@ export function AdvisorTable({
               {a.advisorCode}
             </Td>
             <Td align="left">
-              {a.advisorName ?? "—"} {a.isBucket && <Tag tone="warning">balde do CRM</Tag>}
+              {a.advisorName ?? "—"} {a.isBucket && <Tag tone="warning">sem assessor</Tag>}
             </Td>
             <Td align="left" className={a.employeeName ? "" : "text-text-muted italic"}>
               {a.employeeName ?? "sem colaborador"}

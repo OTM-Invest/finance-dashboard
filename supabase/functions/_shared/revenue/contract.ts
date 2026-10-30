@@ -18,12 +18,13 @@ export const REPORT_KINDS = ["pj1", "pj2", "finder"] as const;
 export type ReportKind = (typeof REPORT_KINDS)[number];
 
 /**
- * Código para onde o importador do CRM manda o assessor desconhecido
- * (`DEFAULT_ADVISOR_CODE`). É também um assessor real, e hoje não dá para separar o que
- * é dele do que caiu ali — no finder, até 57% do mês. Fica "sem área", à vista; o banco
- * recusa ligá-lo a um colaborador.
+ * Linha sem dono: o arquivo do BTG veio sem código de assessor, ou com um código que não
+ * existe no CRM. O importador do CRM grava essas linhas no código padrão (1056306, que é
+ * também o do Leandro); a RPC de detalhe as devolve sob este rótulo, e deixa o 1056306
+ * só com o que o arquivo atribui a ele. Não é código de ninguém — `btg_advisor_code` só
+ * aceita dígitos — e fica "sem área", à vista.
  */
-export const CRM_BUCKET_ADVISOR_CODE = "1056306";
+export const CRM_BUCKET_ADVISOR_CODE = "SEM_CODIGO";
 
 export interface CrmReport {
   id: string;

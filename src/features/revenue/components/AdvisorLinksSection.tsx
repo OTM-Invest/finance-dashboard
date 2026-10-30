@@ -4,7 +4,7 @@
  * A lista é a dos códigos que aparecem nos relatórios do CRM. Para cada código sem
  * colaborador, o nome do CRM PROPÕE um colaborador (`suggestEmployee`); uma pessoa
  * confirma, e o código é gravado em `employees.btg_advisor_code` — a ligação de verdade.
- * O código 1056306 não se liga a ninguém: é o balde do CRM, e fica sem área à vista.
+ * A linha sem dono (`SEM_CODIGO`) não se liga a ninguém: fica sem área, à vista.
  */
 import { toast } from "sonner";
 
@@ -103,7 +103,7 @@ export function AdvisorLinksSection({ codes, links, employees, areaName, canEdit
                 <Td align="left">
                   {isBucket ? (
                     <span className="text-xs text-text-muted">
-                      <Tag tone="warning">balde do CRM</Tag> não se liga: fica sem área
+                      <Tag tone="warning">sem assessor</Tag> não se liga: fica sem área
                     </span>
                   ) : (
                     <div className="flex items-center gap-2">
