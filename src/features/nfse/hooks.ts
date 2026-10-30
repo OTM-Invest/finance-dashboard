@@ -29,6 +29,7 @@ import {
   updateRecipient,
   upsertFiscalSettings,
   voidInvoiceJob,
+  voidInvoiceJobs,
   type CreateBackfillRunInput,
   type InvoiceJobFilters,
   type SandboxChargeInput,
@@ -194,6 +195,16 @@ export function useVoidInvoiceJob() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, motivo }: { id: string; motivo: string }) => voidInvoiceJob(id, motivo),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["nfse", "jobs"] }),
+  });
+}
+
+/** Descartar em lote as notas selecionadas, com um motivo só. */
+export function useVoidInvoiceJobs() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ ids, motivo }: { ids: string[]; motivo: string }) =>
+      voidInvoiceJobs(ids, motivo),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["nfse", "jobs"] }),
   });
 }

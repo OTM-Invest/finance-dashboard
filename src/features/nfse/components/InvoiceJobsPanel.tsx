@@ -1,5 +1,5 @@
 import * as React from "react";
-import { ChevronLeft, ChevronRight, Download, Loader2 } from "lucide-react";
+import { Ban, ChevronLeft, ChevronRight, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
+import { usePermissions } from "@/features/auth/usePermissions";
 import { useCompanyScope } from "@/features/companies/CompanyContext";
 import { formatDate } from "@/lib/dates";
 import { formatBRL } from "@/lib/format";
@@ -36,6 +37,7 @@ import { useInvoiceJobFilters } from "../useInvoiceJobFilters";
 import { useJobSelection } from "../useJobSelection";
 import { InvoiceJobDrawer } from "./InvoiceJobDrawer";
 import { InvoiceJobsFilters } from "./InvoiceJobsFilters";
+import { VoidJobsDialog } from "./VoidJobsDialog";
 
 const PAGE_SIZE = 20;
 
@@ -50,6 +52,8 @@ function jobOrigin(job: InvoiceJob): { label: string; tone: "accent" | "default"
 export function InvoiceJobsPanel() {
   const { data: connections = [] } = useConnections();
   const approveJobs = useApproveInvoiceJobs();
+  const { canEdit } = usePermissions();
+  const [voiding, setVoiding] = React.useState(false);
 
   const { filters: ui, setFilters, setPage, reset } = useInvoiceJobFilters();
   const [detailId, setDetailId] = React.useState<string | null>(null);
@@ -211,6 +215,18 @@ export function InvoiceJobsPanel() {
             </DropdownMenuContent>
           </DropdownMenu>
 
+          {canEdit && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={selected.size === 0 || approveJobs.isPending}
+              onClick={() => setVoiding(true)}
+            >
+              <Ban className="size-4" /> Descartar selecionadas ({selected.size})
+            </Button>
+          )}
+
           <Button
             type="button"
             size="sm"
@@ -347,6 +363,8 @@ export function InvoiceJobsPanel() {
           </div>
         </div>
       )}
+
+      <VoidJobsDialog open={voiding} onOpenChange={setVoiding} ids={[...selected]} onDone={clear} />
 
       <InvoiceJobDrawer
         open={Boolean(detail)}
