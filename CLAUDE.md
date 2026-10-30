@@ -247,8 +247,8 @@ recalcula o vencimento por conta própria, ignorando o do cliente. Não duplique
 o número que sai daí é o que se paga à Receita.
 
 ⚠️ **Linha de demonstrativo tem duas naturezas.** `is_manual = false` vem de lançamento
-e é **regenerada** a cada recálculo; `is_manual = true` (retenção sofrida, outras
-deduções, saldo anterior) **sobrevive**. Tratar as duas igual apagaria a retenção
+e é **regenerada** a cada recálculo; `is_manual = true` (receita fora dos
+lançamentos, devolução, retenção sofrida, outras deduções, saldo anterior) **sobrevive**. Tratar as duas igual apagaria a retenção
 digitada e o imposto subiria em silêncio.
 
 ⚠️ **Não existe apuração consolidada.** A regra é de UMA empresa (alíquota, presunção,

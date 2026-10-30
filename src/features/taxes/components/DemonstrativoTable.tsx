@@ -129,6 +129,10 @@ function Section({
                 <tr key={line.id ?? `${line.line_kind}-${i}`} className="hover:bg-surface-2/40">
                   <td className="max-w-[22rem] px-3 py-1.5">
                     <span className="block truncate">{line.description}</span>
+                    {/* em receita, o "digitado" é o que distingue do que veio de lançamento */}
+                    {line.is_manual && isBase && (
+                      <span className="text-2xs block text-text-subtle">digitado à mão</span>
+                    )}
                     {line.document_ref && line.document_ref !== line.description && (
                       <span className="text-2xs block truncate text-text-subtle">
                         {line.document_ref}
