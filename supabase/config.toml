@@ -436,6 +436,11 @@ verify_jwt = true
 [functions.nfse-cancel]
 verify_jwt = true
 
+# Exportação de custos para o RCO Dash — chamada pelo job do Dash, sem JWT do
+# Supabase. A origem é verificada pela chave compartilhada DASH_EXPORT_KEY (Bearer).
+[functions.dash-cost-export]
+verify_jwt = false
+
 # Experimental features may be deprecated any time
 [experimental]
 # Configures Postgres storage engine to use OrioleDB (S3)

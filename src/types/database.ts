@@ -1501,6 +1501,44 @@ export type Database = {
           },
         ]
       }
+      dash_cost_vendors: {
+        Row: {
+          area: string
+          company_id: string
+          created_at: string
+          id: string
+          notes: string | null
+          updated_at: string
+          vendor_key: string
+        }
+        Insert: {
+          area?: string
+          company_id: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          updated_at?: string
+          vendor_key: string
+        }
+        Update: {
+          area?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          updated_at?: string
+          vendor_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dash_cost_vendors_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employees: {
         Row: {
           base_salary: number
@@ -6115,6 +6153,19 @@ export type Database = {
       current_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
+      }
+      dash_cost_export: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          amount_cents: number
+          area: string
+          company_name: string
+          item_code: string
+          item_name: string
+          month: string
+          vendor_key: string
+          vendor_name: string
+        }[]
       }
       default_management_account_code: {
         Args: { p_kind: Database["public"]["Enums"]["account_kind"] }
