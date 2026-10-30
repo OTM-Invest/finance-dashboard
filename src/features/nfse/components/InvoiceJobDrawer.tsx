@@ -29,7 +29,14 @@ import { formatDocument } from "@/lib/document";
 import { formatBRL } from "@/lib/format";
 
 import { nfseFileUrl, TOMADOR_EDITABLE_STATUSES, type InvoiceJob } from "../api";
-import { DOCUMENT_TYPE_META, isRefundHeld, JOB_STATUS_META, REFUND_STATE_META } from "../constants";
+import {
+  DOCUMENT_TYPE_META,
+  isRefundHeld,
+  JOB_STATUS_META,
+  VOID_MOTIVO_MIN as MOTIVO_MIN,
+  REFUND_STATE_META,
+  VOIDABLE_STATUSES,
+} from "../constants";
 import {
   useApproveInvoiceJob,
   useReleaseInvoiceJob,
@@ -38,6 +45,7 @@ import {
 } from "../hooks";
 import { deriveTomadorEndereco, ENDERECO_FIELD_LABELS, hasEnderecoOverride } from "../tomador";
 import { TomadorReviewForm } from "./TomadorReviewForm";
+import { VoidJobsDialog } from "./VoidJobsDialog";
 
 interface Props {
   open: boolean;
@@ -51,10 +59,14 @@ export function InvoiceJobDrawer({ open, onOpenChange, job }: Props) {
   const approve = useApproveInvoiceJob();
   const requeue = useRequeueInvoiceJob();
   const [editing, setEditing] = React.useState(false);
+  const [voiding, setVoiding] = React.useState(false);
 
   // trocar de nota (ou fechar) sempre volta ao modo leitura
   const jobId = job?.id ?? null;
-  React.useEffect(() => setEditing(false), [jobId, open]);
+  React.useEffect(() => {
+    setEditing(false);
+    setVoiding(false);
+  }, [jobId, open]);
 
   if (!job) return null;
 
@@ -72,6 +84,8 @@ export function InvoiceJobDrawer({ open, onOpenChange, job }: Props) {
   const retida = isRefundHeld(job);
   const canApprove = job.status === "pending_review" && !retida;
   const canRequeue = (job.status === "rejected" || job.status === "failed") && !retida;
+  // descarte manual de nota sem estorno; a retida já tem o seu no RefundDecision
+  const canVoid = canEdit && !retida && VOIDABLE_STATUSES.includes(job.status);
   const { endereco, missing: missingEndereco } = deriveTomadorEndereco(job.tomador_endereco);
   const docDigits = (job.tomador_documento ?? "").replace(/\D/gu, "").length;
   const missingTomador = [
@@ -282,6 +296,11 @@ export function InvoiceJobDrawer({ open, onOpenChange, job }: Props) {
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Fechar
           </Button>
+          {canVoid && !editing && (
+            <Button variant="outline" onClick={() => setVoiding(true)}>
+              <Ban className="size-4" /> Descartar
+            </Button>
+          )}
           {canApprove && !editing && (
             <Button
               disabled={approve.isPending || !user}
@@ -325,6 +344,12 @@ export function InvoiceJobDrawer({ open, onOpenChange, job }: Props) {
             </Button>
           )}
         </SheetFooter>
+        <VoidJobsDialog
+          open={voiding}
+          onOpenChange={setVoiding}
+          ids={[job.id]}
+          onDone={() => onOpenChange(false)}
+        />
       </SheetContent>
     </Sheet>
   );
@@ -345,8 +370,6 @@ function enderecoLinha(endereco: {
   const rua = [endereco.logradouro, endereco.numero].filter(Boolean).join(", ");
   return [rua, endereco.complemento].filter(Boolean).join(" - ") || "—";
 }
-
-const MOTIVO_MIN = 10;
 
 /**
  * As duas saídas de uma nota retida por estorno — e só elas.

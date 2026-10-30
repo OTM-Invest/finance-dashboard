@@ -4,7 +4,7 @@ import type { InvoiceJob } from "./api";
 import { isRefundHeld } from "./constants";
 
 /**
- * Seleção de notas para emissão em lote. Só `pending_review` é selecionável —
+ * Seleção de notas para emissão ou descarte em lote. Só `pending_review` é selecionável —
  * e nota de venda estornada não entra na seleção, nem pelo "selecionar todas".
  * É justamente o lote que torna o estorno perigoso: em produção havia 134 notas
  * de venda estornada na fila (R$ 188.814,00) que um clique só emitiria.

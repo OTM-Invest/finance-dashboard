@@ -96,6 +96,16 @@ export function isRefundHeld(job: {
   return (job.refund_state ?? "none") !== "none" && job.refund_released_at === null;
 }
 
+/**
+ * Estados em que a nota pode ser descartada: ainda não saiu para o Focus. Espelha
+ * o predicado de `void_invoice_jobs` — o banco é quem decide, isto só evita
+ * oferecer o botão onde ele falharia.
+ */
+export const VOIDABLE_STATUSES = ["pending_review", "approved", "queued", "rejected", "failed"];
+
+/** Motivo mínimo para liberar ou descartar uma nota (o banco confere o mesmo). */
+export const VOID_MOTIVO_MIN = 10;
+
 /** Opções do filtro de ambiente na fila de notas. */
 export const AMBIENTE_FILTER_VALUES = ["all", "homologacao", "producao"] as const;
 export type AmbienteFilter = (typeof AMBIENTE_FILTER_VALUES)[number];

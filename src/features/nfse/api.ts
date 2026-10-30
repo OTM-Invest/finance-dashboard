@@ -422,6 +422,27 @@ export async function voidInvoiceJob(id: string, motivo: string): Promise<void> 
   if (error) throw error;
 }
 
+/** Resultado do descarte em lote: o que foi descartado e o que o estado não permitiu. */
+export interface VoidResult {
+  voided: number;
+  skipped: number;
+}
+
+/**
+ * Descarta em lote (seleção da tabela), com um motivo para todas. Nota que já
+ * saiu para o Focus é pulada e volta em `skipped`, não derruba o lote.
+ */
+export async function voidInvoiceJobs(ids: string[], motivo: string): Promise<VoidResult> {
+  if (ids.length === 0) return { voided: 0, skipped: 0 };
+  const { data, error } = await supabase.rpc("void_invoice_jobs", {
+    p_ids: ids,
+    p_motivo: motivo,
+  });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  return { voided: row?.voided ?? 0, skipped: row?.skipped ?? 0 };
+}
+
 /**
  * Reemissão em produção: clona as notas AUTORIZADAS de homologação de uma
  * conexão em novos jobs `producao` + `pending_review` (nada é emitido). Retorna

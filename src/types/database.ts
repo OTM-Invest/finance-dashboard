@@ -7243,6 +7243,13 @@ export type Database = {
         Args: { p_id: string; p_motivo: string }
         Returns: Database["public"]["Enums"]["invoice_job_status"]
       }
+      void_invoice_jobs: {
+        Args: { p_ids: string[]; p_motivo: string }
+        Returns: {
+          skipped: number
+          voided: number
+        }[]
+      }
     }
     Enums: {
       account_kind:
