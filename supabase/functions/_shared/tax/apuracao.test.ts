@@ -731,3 +731,60 @@ describe("data-base da apuração", () => {
     expect(r.warnings).toHaveLength(0);
   });
 });
+
+describe("receita digitada à mão", () => {
+  // Receita que não está nos lançamentos (nota emitida por fora, faturamento que a
+  // contabilidade informou) entra como linha manual e sobrevive ao recálculo.
+  it("soma na base e presume pela classe escolhida", () => {
+    const r = computeAssessment(
+      inputs({
+        ...trimestre,
+        kind: "darf_irpj",
+        rule: OTM_IRPJ,
+        gathered_lines: [revenue("Comissão", 300_000, "servico_geral")],
+        manual_lines: [
+          revenue("Faturamento informado pela contabilidade", 200_000, "servico_geral"),
+        ],
+      }),
+    );
+
+    expect(r.gross_revenue).toBe(500_000);
+    // 32% de R$ 500.000, tudo dentro da 1ª faixa
+    expect(r.taxable_base).toBe(160_000);
+    expect(r.lines.find((l) => l.is_manual)?.base_amount).toBe(64_000);
+  });
+
+  it("devolução digitada reduz a base", () => {
+    const r = computeAssessment(
+      inputs({
+        kind: "iss",
+        rule: rule({ rate: 0.02 }),
+        gathered_lines: [revenue("Faturamento", 100_000)],
+        manual_lines: [
+          { line_kind: "revenue_return", description: "Nota cancelada", amount: -10_000 },
+        ],
+      }),
+    );
+
+    expect(r.taxable_base).toBe(90_000);
+    expect(r.tax_amount).toBe(1_800);
+  });
+
+  it("não dispara o aviso de data-base — a outra data só existe para lançamento", () => {
+    // `gross_revenue_alt_basis` é a soma dos LANÇAMENTOS pela outra data. Comparar com
+    // uma base que inclui receita digitada acusaria divergência que não existe.
+    const r = computeAssessment(
+      inputs({
+        kind: "iss",
+        rule: rule({ rate: 0.02 }),
+        gathered_lines: [revenue("Faturamento", 100_000)],
+        manual_lines: [revenue("Nota emitida por fora", 50_000)],
+        base_date_basis: "cash",
+        gross_revenue_alt_basis: 100_000,
+      }),
+    );
+
+    expect(r.gross_revenue).toBe(150_000);
+    expect(r.warnings).toHaveLength(0);
+  });
+});
