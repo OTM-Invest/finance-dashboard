@@ -75,11 +75,24 @@ para que receita nova não desapareça em silêncio da base.
 ### `is_manual` é a distinção que importa
 
 Linha **colhida** (`is_manual = false`) vem de um lançamento, é rastreável até a origem
-e é **regenerada** a cada recálculo. Linha **manual** (retenção sofrida, outras
-deduções, saldo anterior) **sobrevive**. Sem isso, reapertar "Apurar" apagaria a
+e é **regenerada** a cada recálculo. Linha **manual** (receita fora dos lançamentos,
+devolução, retenção sofrida, outras deduções, saldo anterior) **sobrevive**. Sem isso, reapertar "Apurar" apagaria a
 retenção digitada e o imposto subiria em silêncio. O check
 `tax_assessment_lines_origem_ck` garante que toda linha não manual tenha
 `transaction_id`.
+
+### Receita digitada à mão
+
+Há receita que não está nos lançamentos — nota emitida por fora, faturamento que a
+contabilidade informou antes de o lançamento existir. Ela entra como linha manual de
+`revenue` (ou `revenue_return`, gravada **negativa** como a colhida) e, quando a regra
+presume, com a classe de presunção escolhida na tela. O demonstrativo marca a linha
+como "digitado à mão".
+
+⚠️ Ela **não entra** na comparação com a outra data-base: `gross_revenue_alt_basis` é
+calculado só sobre lançamentos, e somar a receita digitada de um lado só acusaria
+divergência que não existe. Se a receita digitada **duplica** um lançamento, nada
+avisa — confira contra as linhas colhidas, que ficam na mesma seção.
 
 ### Estado dos lançamentos na base
 

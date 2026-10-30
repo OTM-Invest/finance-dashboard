@@ -357,14 +357,19 @@ export function computeAssessment(inputs: AssessmentInputs): AssessmentResult {
 
   // Data-base errada não parece defeito: o número sai bonito, só do mês trocado. Este
   // aviso é o que faz a divergência aparecer antes de virar imposto pago errado.
+  //
+  // A comparação é só entre LANÇAMENTOS: a outra data-base é calculada sobre eles, e a
+  // receita digitada à mão não tem data de caixa nem de competência. Incluí-la acusaria
+  // divergência que não existe.
   if (inputs.gross_revenue_alt_basis !== undefined && !inputs.base_date_basis_confirmed) {
+    const gatheredCents = sumCents(baseLines.filter((l) => !l.is_manual));
     const altCents = toCents(inputs.gross_revenue_alt_basis);
-    const maior = Math.max(Math.abs(grossCents), Math.abs(altCents));
-    if (maior > 0 && Math.abs(altCents - grossCents) > maior / 100) {
+    const maior = Math.max(Math.abs(gatheredCents), Math.abs(altCents));
+    if (maior > 0 && Math.abs(altCents - gatheredCents) > maior / 100) {
       const atual = inputs.base_date_basis === "cash" ? "caixa" : "competência";
       const outra = inputs.base_date_basis === "cash" ? "competência" : "caixa";
       warnings.push(
-        `A base está sendo apurada por ${atual} (R$ ${fromCents(grossCents).toFixed(2)}); ` +
+        `A base está sendo apurada por ${atual} (R$ ${fromCents(gatheredCents).toFixed(2)}); ` +
           `por ${outra} o mesmo período daria R$ ${fromCents(altCents).toFixed(2)}. ` +
           `Confira contra o demonstrativo da contabilidade qual das duas é a competência ` +
           `fiscal e marque a data-base como conferida na regra — este aviso é de uma vez só.`,

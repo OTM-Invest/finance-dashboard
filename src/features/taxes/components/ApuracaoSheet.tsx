@@ -23,11 +23,23 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/cn";
 import { formatDate } from "@/lib/dates";
 
 import type { TaxObligationKind } from "../api";
-import { computeAssessment, type InputLine, type LineKind } from "../apuracao";
-import { KIND_META, LINE_KIND_META, PERIOD_KIND_META, periodLabel } from "../constants";
+import {
+  computeAssessment,
+  type InputLine,
+  type LineKind,
+  type PresumptionClass,
+} from "../apuracao";
+import {
+  KIND_META,
+  LINE_KIND_META,
+  PERIOD_KIND_META,
+  periodLabel,
+  PRESUMPTION_CLASS_META,
+} from "../constants";
 import {
   useAssessmentInputs,
   useConfirmAssessment,
@@ -41,14 +53,27 @@ import { DemonstrativoTable } from "./DemonstrativoTable";
  * Apuração de um tributo num período.
  *
  * O ciclo é: o banco colhe a base sob RLS, o motor compartilhado faz a conta, e o
- * banco grava conferindo a coerência. As linhas MANUAIS (retenção sofrida, outras
- * deduções, saldo anterior) vivem no estado local até salvar e sobrevivem ao
+ * banco grava conferindo a coerência. As linhas MANUAIS (receita fora dos lançamentos,
+ * devolução, retenção sofrida, outras deduções, saldo anterior) vivem no estado local
+ * até salvar e sobrevivem ao
  * recálculo — sem isso, reapertar "Recalcular" apagaria a retenção digitada e o
  * imposto subiria em silêncio.
  */
 
-/** Seções que se digitam à mão: o resto vem dos lançamentos. */
-const MANUAL_KINDS: LineKind[] = ["retention", "deduction", "addition", "carryforward"];
+/**
+ * Seções que se digitam à mão. Receita e devolução também: há receita que não está
+ * nos lançamentos (nota emitida por fora, faturamento informado pela contabilidade).
+ */
+const MANUAL_KINDS: LineKind[] = [
+  "revenue",
+  "revenue_return",
+  "retention",
+  "deduction",
+  "addition",
+  "carryforward",
+];
+
+const BASE_KINDS: LineKind[] = ["revenue", "revenue_return"];
 
 interface Props {
   open: boolean;
@@ -180,6 +205,11 @@ export function ApuracaoSheet({
                 <ManualLineForm
                   onAdd={addManual}
                   deductsRetentions={query.data?.rule.deducts_retentions ?? false}
+                  defaultPresumptionClass={
+                    query.data?.rule.uses_presumption
+                      ? query.data.rule.default_presumption_class
+                      : null
+                  }
                 />
               )}
 
@@ -285,29 +315,55 @@ export function ApuracaoSheet({
   );
 }
 
-/** Retenção sofrida, outras deduções, acréscimos e saldo anterior — o que se digita. */
+/**
+ * O que se digita: receita fora dos lançamentos, devolução, retenção sofrida, outras
+ * deduções, acréscimos e saldo anterior.
+ *
+ * O valor se digita sempre positivo; devolução é gravada negativa, como a colhida dos
+ * lançamentos — senão uma devolução digitada SOMARIA na base.
+ */
 function ManualLineForm({
   onAdd,
   deductsRetentions,
+  defaultPresumptionClass,
 }: {
   onAdd: (line: InputLine) => void;
   deductsRetentions: boolean;
+  /** Classe padrão da regra quando ela presume; `null` = a regra não usa presunção. */
+  defaultPresumptionClass: PresumptionClass | null;
 }) {
   const [lineKind, setLineKind] = React.useState<LineKind>(
     deductsRetentions ? "retention" : "deduction",
   );
   const [description, setDescription] = React.useState("");
   const [amount, setAmount] = React.useState(0);
+  const [presumptionClass, setPresumptionClass] = React.useState<PresumptionClass | null>(
+    defaultPresumptionClass,
+  );
 
-  const canAdd = description.trim().length > 0 && amount !== 0;
+  const isBase = BASE_KINDS.includes(lineKind);
+  const asksClass = isBase && defaultPresumptionClass !== null;
+  // receita e devolução se digitam positivas (o sinal é da seção); saldo anterior pode
+  // ser crédito, e por isso negativo
+  const canAdd = description.trim().length > 0 && (isBase ? amount > 0 : amount !== 0);
 
   return (
     <form
-      className="grid grid-cols-1 items-end gap-2 rounded-[var(--radius-md)] border border-dashed border-border p-3 sm:grid-cols-[11rem_1fr_9rem_auto]"
+      className={cn(
+        "grid grid-cols-1 items-end gap-2 rounded-[var(--radius-md)] border border-dashed border-border p-3",
+        asksClass
+          ? "sm:grid-cols-[11rem_11rem_1fr_9rem_auto]"
+          : "sm:grid-cols-[11rem_1fr_9rem_auto]",
+      )}
       onSubmit={(e) => {
         e.preventDefault();
         if (!canAdd) return;
-        onAdd({ line_kind: lineKind, description: description.trim(), amount });
+        onAdd({
+          line_kind: lineKind,
+          description: description.trim(),
+          amount: lineKind === "revenue_return" ? -amount : amount,
+          presumption_class: asksClass ? presumptionClass : null,
+        });
         setDescription("");
         setAmount(0);
       }}
@@ -330,6 +386,29 @@ function ManualLineForm({
         </Select>
       </div>
 
+      {asksClass && (
+        <div className="space-y-1">
+          <Label htmlFor="manual-class" className="text-2xs">
+            Presunção
+          </Label>
+          <Select
+            value={presumptionClass ?? undefined}
+            onValueChange={(v) => setPresumptionClass(v as PresumptionClass)}
+          >
+            <SelectTrigger id="manual-class">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(PRESUMPTION_CLASS_META) as PresumptionClass[]).map((c) => (
+                <SelectItem key={c} value={c}>
+                  {PRESUMPTION_CLASS_META[c].label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
       <div className="space-y-1">
         <Label htmlFor="manual-desc" className="text-2xs">
           Descrição
@@ -338,7 +417,11 @@ function ManualLineForm({
           id="manual-desc"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="ex.: IRRF retido na NF do BTG Pactual"
+          placeholder={
+            isBase
+              ? "ex.: NFS-e 1234 emitida fora do sistema"
+              : "ex.: IRRF retido na NF do BTG Pactual"
+          }
         />
       </div>
 

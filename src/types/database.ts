@@ -321,6 +321,48 @@ export type Database = {
           },
         ]
       }
+      btg_report_routes: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          kind: Database["public"]["Enums"]["btg_report_kind"]
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          kind: Database["public"]["Enums"]["btg_report_kind"]
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["btg_report_kind"]
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "btg_report_routes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "btg_report_routes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       card_statement_lines: {
         Row: {
           ai_confidence: number | null
@@ -1274,6 +1316,191 @@ export type Database = {
           },
         ]
       }
+      crm_commission_report_lines: {
+        Row: {
+          advisor_active: boolean | null
+          advisor_code: string
+          advisor_name: string | null
+          category: string
+          commission: number
+          company_id: string
+          id: string
+          net_revenue: number | null
+          product: string
+          report_id: string
+          revenue: number | null
+          row_count: number
+          type: string
+        }
+        Insert: {
+          advisor_active?: boolean | null
+          advisor_code: string
+          advisor_name?: string | null
+          category: string
+          commission: number
+          company_id: string
+          id?: string
+          net_revenue?: number | null
+          product: string
+          report_id: string
+          revenue?: number | null
+          row_count: number
+          type: string
+        }
+        Update: {
+          advisor_active?: boolean | null
+          advisor_code?: string
+          advisor_name?: string | null
+          category?: string
+          commission?: number
+          company_id?: string
+          id?: string
+          net_revenue?: number | null
+          product?: string
+          report_id?: string
+          revenue?: number | null
+          row_count?: number
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_commission_report_lines_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_commission_report_lines_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "crm_commission_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_commission_reports: {
+        Row: {
+          company_id: string
+          content_hash: string
+          created_at: string
+          file_key: string
+          file_name: string | null
+          id: string
+          imported_at: string | null
+          kind: Database["public"]["Enums"]["btg_report_kind"]
+          organization_id: string
+          period_end: string | null
+          period_start: string | null
+          reference_month: string
+          removed_at: string | null
+          row_count: number
+          synced_at: string
+          total_commission: number
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          content_hash: string
+          created_at?: string
+          file_key: string
+          file_name?: string | null
+          id: string
+          imported_at?: string | null
+          kind: Database["public"]["Enums"]["btg_report_kind"]
+          organization_id: string
+          period_end?: string | null
+          period_start?: string | null
+          reference_month: string
+          removed_at?: string | null
+          row_count: number
+          synced_at?: string
+          total_commission: number
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          content_hash?: string
+          created_at?: string
+          file_key?: string
+          file_name?: string | null
+          id?: string
+          imported_at?: string | null
+          kind?: Database["public"]["Enums"]["btg_report_kind"]
+          organization_id?: string
+          period_end?: string | null
+          period_start?: string | null
+          reference_month?: string
+          removed_at?: string | null
+          row_count?: number
+          synced_at?: string
+          total_commission?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_commission_reports_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_commission_reports_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_sync_runs: {
+        Row: {
+          error: string | null
+          finished_at: string | null
+          id: string
+          organization_id: string
+          period_from: string | null
+          period_to: string | null
+          requested_by: string | null
+          result: Json
+          started_at: string
+          status: string
+        }
+        Insert: {
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          organization_id: string
+          period_from?: string | null
+          period_to?: string | null
+          requested_by?: string | null
+          result?: Json
+          started_at?: string
+          status: string
+        }
+        Update: {
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          organization_id?: string
+          period_from?: string | null
+          period_to?: string | null
+          requested_by?: string | null
+          result?: Json
+          started_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_sync_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dash_cost_vendors: {
         Row: {
           area: string
@@ -1315,6 +1542,7 @@ export type Database = {
       employees: {
         Row: {
           base_salary: number
+          btg_advisor_code: string | null
           company_id: string
           cost_center_id: string | null
           cpf: string | null
@@ -1336,6 +1564,7 @@ export type Database = {
         }
         Insert: {
           base_salary: number
+          btg_advisor_code?: string | null
           company_id: string
           cost_center_id?: string | null
           cpf?: string | null
@@ -1357,6 +1586,7 @@ export type Database = {
         }
         Update: {
           base_salary?: number
+          btg_advisor_code?: string | null
           company_id?: string
           cost_center_id?: string | null
           cpf?: string | null
@@ -3466,6 +3696,268 @@ export type Database = {
           },
         ]
       }
+      revenue_category_map: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          management_account_id: string
+          organization_id: string
+          product: string | null
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          id?: string
+          management_account_id: string
+          organization_id: string
+          product?: string | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          management_account_id?: string
+          organization_id?: string
+          product?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revenue_category_map_management_account_id_fkey"
+            columns: ["management_account_id"]
+            isOneToOne: false
+            referencedRelation: "management_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revenue_category_map_management_account_id_fkey"
+            columns: ["management_account_id"]
+            isOneToOne: false
+            referencedRelation: "v_account_management_map"
+            referencedColumns: ["management_account_id"]
+          },
+          {
+            foreignKeyName: "revenue_category_map_management_account_id_fkey"
+            columns: ["management_account_id"]
+            isOneToOne: false
+            referencedRelation: "v_account_management_map"
+            referencedColumns: ["management_group_id"]
+          },
+          {
+            foreignKeyName: "revenue_category_map_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      revenue_statement_lines: {
+        Row: {
+          advisor_code: string | null
+          advisor_name: string | null
+          amount: number
+          category: string | null
+          company_id: string
+          id: string
+          line_kind: Database["public"]["Enums"]["revenue_line_kind"]
+          product: string | null
+          report_id: string | null
+          revenue: number | null
+          row_count: number | null
+          statement_id: string
+          type: string | null
+        }
+        Insert: {
+          advisor_code?: string | null
+          advisor_name?: string | null
+          amount: number
+          category?: string | null
+          company_id: string
+          id?: string
+          line_kind: Database["public"]["Enums"]["revenue_line_kind"]
+          product?: string | null
+          report_id?: string | null
+          revenue?: number | null
+          row_count?: number | null
+          statement_id: string
+          type?: string | null
+        }
+        Update: {
+          advisor_code?: string | null
+          advisor_name?: string | null
+          amount?: number
+          category?: string | null
+          company_id?: string
+          id?: string
+          line_kind?: Database["public"]["Enums"]["revenue_line_kind"]
+          product?: string | null
+          report_id?: string | null
+          revenue?: number | null
+          row_count?: number | null
+          statement_id?: string
+          type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revenue_statement_lines_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revenue_statement_lines_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "crm_commission_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revenue_statement_lines_statement_id_fkey"
+            columns: ["statement_id"]
+            isOneToOne: false
+            referencedRelation: "revenue_statements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      revenue_statement_reports: {
+        Row: {
+          company_id: string
+          content_hash: string
+          report_id: string
+          statement_id: string
+        }
+        Insert: {
+          company_id: string
+          content_hash: string
+          report_id: string
+          statement_id: string
+        }
+        Update: {
+          company_id?: string
+          content_hash?: string
+          report_id?: string
+          statement_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revenue_statement_reports_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revenue_statement_reports_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: true
+            referencedRelation: "crm_commission_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revenue_statement_reports_statement_id_fkey"
+            columns: ["statement_id"]
+            isOneToOne: false
+            referencedRelation: "revenue_statements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      revenue_statements: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          difference: number | null
+          difference_accepted_at: string | null
+          difference_accepted_by: string | null
+          difference_note: string | null
+          id: string
+          kind: Database["public"]["Enums"]["btg_report_kind"]
+          ledger_amount: number
+          report_total: number
+          status: Database["public"]["Enums"]["revenue_statement_status"]
+          transaction_id: string
+          updated_at: string
+          validation: Json
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          difference?: number | null
+          difference_accepted_at?: string | null
+          difference_accepted_by?: string | null
+          difference_note?: string | null
+          id?: string
+          kind: Database["public"]["Enums"]["btg_report_kind"]
+          ledger_amount: number
+          report_total: number
+          status: Database["public"]["Enums"]["revenue_statement_status"]
+          transaction_id: string
+          updated_at?: string
+          validation?: Json
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          difference?: number | null
+          difference_accepted_at?: string | null
+          difference_accepted_by?: string | null
+          difference_note?: string | null
+          id?: string
+          kind?: Database["public"]["Enums"]["btg_report_kind"]
+          ledger_amount?: number
+          report_total?: number
+          status?: Database["public"]["Enums"]["revenue_statement_status"]
+          transaction_id?: string
+          updated_at?: string
+          validation?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revenue_statements_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revenue_statements_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: true
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revenue_statements_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: true
+            referencedRelation: "v_bills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revenue_statements_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: true
+            referencedRelation: "v_transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revenue_statements_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: true
+            referencedRelation: "v_transactions_signed"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sales_events: {
         Row: {
           event_id: string
@@ -4607,6 +5099,51 @@ export type Database = {
         }
         Relationships: []
       }
+      v_revenue_lines: {
+        Row: {
+          advisor_code: string | null
+          advisor_name: string | null
+          amount: number | null
+          category: string | null
+          company_id: string | null
+          cost_center_id: string | null
+          employee_id: string | null
+          employee_name: string | null
+          id: string | null
+          is_unmapped: boolean | null
+          line_kind: Database["public"]["Enums"]["revenue_line_kind"] | null
+          management_account_id: string | null
+          product: string | null
+          report_id: string | null
+          revenue: number | null
+          row_count: number | null
+          statement_id: string | null
+          type: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revenue_statement_lines_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revenue_statement_lines_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "crm_commission_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revenue_statement_lines_statement_id_fkey"
+            columns: ["statement_id"]
+            isOneToOne: false
+            referencedRelation: "revenue_statements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_transactions: {
         Row: {
           account_id: string | null
@@ -5037,6 +5574,10 @@ export type Database = {
         Args: { p_code: string; p_company_id: string }
         Returns: string
       }
+      accept_revenue_statement_difference: {
+        Args: { p_note: string; p_statement_id: string }
+        Returns: undefined
+      }
       advance_recurrence_date: {
         Args: {
           p_current: string
@@ -5157,6 +5698,16 @@ export type Database = {
           initial_balance: number
           nickname: string
           outflow: number
+        }[]
+      }
+      btg_advisor_areas: {
+        Args: never
+        Returns: {
+          advisor_code: string
+          cost_center_id: string
+          employee_id: string
+          employee_name: string
+          organization_id: string
         }[]
       }
       bulk_update_transactions: {
@@ -5560,6 +6111,45 @@ export type Database = {
         }
         Returns: string
       }
+      crm_advisor_codes: {
+        Args: { p_company_ids?: string[]; p_from?: string }
+        Returns: {
+          advisor_active: boolean
+          advisor_code: string
+          advisor_name: string
+          commission: number
+          last_month: string
+          report_count: number
+        }[]
+      }
+      crm_commission_sync_apply: {
+        Args: {
+          p_from: string
+          p_lines: Json
+          p_organization_id: string
+          p_reports: Json
+          p_to: string
+        }
+        Returns: Json
+      }
+      crm_revenue_cron_invoke: {
+        Args: { p_from?: string; p_requested_by?: string; p_to?: string }
+        Returns: boolean
+      }
+      crm_revenue_sync_config: { Args: never; Returns: Json }
+      crm_sync_run_finish: {
+        Args: { p_error?: string; p_result: Json; p_run_id: string }
+        Returns: undefined
+      }
+      crm_sync_run_start: {
+        Args: {
+          p_from: string
+          p_organization_id: string
+          p_requested_by?: string
+          p_to: string
+        }
+        Returns: string
+      }
       current_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
@@ -5591,6 +6181,10 @@ export type Database = {
       }
       delete_employee: { Args: { p_employee_id: string }; Returns: undefined }
       delete_payroll_run: { Args: { p_run_id: string }; Returns: undefined }
+      delete_revenue_statement: {
+        Args: { p_statement_id: string }
+        Returns: undefined
+      }
       dre_by_company: {
         Args: { p_company_id: string; p_end: string; p_start: string }
         Returns: {
@@ -6184,6 +6778,19 @@ export type Database = {
           id: string
         }[]
       }
+      pending_revenue_transactions: {
+        Args: { p_company_ids?: string[]; p_from?: string; p_limit?: number }
+        Returns: {
+          accrual_date: string
+          amount: number
+          cash_date: string
+          company_id: string
+          counterparty_name: string
+          description: string
+          id: string
+          status: Database["public"]["Enums"]["transaction_status"]
+        }[]
+      }
       post_payroll_run: {
         Args: { p_default_account_id: string; p_run_id: string }
         Returns: {
@@ -6324,6 +6931,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      request_crm_revenue_sync: {
+        Args: { p_from?: string; p_to?: string }
+        Returns: boolean
+      }
       restructure_cost_centers_into_areas: {
         Args: { p_organization_id: string }
         Returns: Json
@@ -6331,6 +6942,27 @@ export type Database = {
       resync_recurring_future: {
         Args: { p_template_id: string }
         Returns: number
+      }
+      revenue_breakdown_multi: {
+        Args: {
+          p_basis?: Database["public"]["Enums"]["accounting_basis"]
+          p_company_ids?: string[]
+          p_from: string
+          p_to: string
+        }
+        Returns: {
+          advisor_code: string
+          advisor_name: string
+          amount: number
+          company_id: string
+          cost_center_id: string
+          employee_id: string
+          employee_name: string
+          line_kind: Database["public"]["Enums"]["revenue_line_kind"]
+          management_account_id: string
+          months: string[]
+          revenue: number
+        }[]
       }
       rewrite_balance_model_lines: {
         Args: {
@@ -6424,6 +7056,14 @@ export type Database = {
         }
         Returns: Json
       }
+      save_revenue_statement: {
+        Args: {
+          p_replace?: boolean
+          p_report_ids: string[]
+          p_transaction_id: string
+        }
+        Returns: Json
+      }
       save_tax_assessment: {
         Args: { p_payload: Json }
         Returns: {
@@ -6462,11 +7102,19 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      seed_btg_revenue_items: {
+        Args: { p_organization_id: string }
+        Returns: number
+      }
       seed_company_chart_of_accounts: {
         Args: { p_company_id: string }
         Returns: number
       }
       seed_management_plan: {
+        Args: { p_organization_id: string }
+        Returns: number
+      }
+      seed_revenue_category_map: {
         Args: { p_organization_id: string }
         Returns: number
       }
@@ -6630,6 +7278,7 @@ export type Database = {
         | "investment_fund"
         | "cash"
         | "payment_gateway"
+      btg_report_kind: "pj1" | "pj2" | "finder"
       card_classification_source: "rule" | "ai" | "human"
       card_line_classification: "unclassified" | "suggested" | "confirmed"
       card_line_kind: "purchase" | "fee" | "interest" | "refund"
@@ -6720,6 +7369,8 @@ export type Database = {
         | "quarterly"
         | "semiannual"
         | "yearly"
+      revenue_line_kind: "detail" | "difference"
+      revenue_statement_status: "needs_review" | "reconciled"
       statement_line_status: "unmatched" | "matched" | "created" | "ignored"
       tax_allowance_mode: "excess" | "full_when_exceeded"
       tax_assessment_line_kind:
@@ -6932,6 +7583,7 @@ export const Constants = {
         "cash",
         "payment_gateway",
       ],
+      btg_report_kind: ["pj1", "pj2", "finder"],
       card_classification_source: ["rule", "ai", "human"],
       card_line_classification: ["unclassified", "suggested", "confirmed"],
       card_line_kind: ["purchase", "fee", "interest", "refund"],
@@ -7018,6 +7670,8 @@ export const Constants = {
         "semiannual",
         "yearly",
       ],
+      revenue_line_kind: ["detail", "difference"],
+      revenue_statement_status: ["needs_review", "reconciled"],
       statement_line_status: ["unmatched", "matched", "created", "ignored"],
       tax_allowance_mode: ["excess", "full_when_exceeded"],
       tax_assessment_line_kind: [

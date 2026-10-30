@@ -1,4 +1,4 @@
--- Exportação de custos para o RCO Dash (migration 20261027200000).
+-- Exportação de custos para o RCO Dash (migration 20261030170000).
 --
 -- Confere que só sai o que está na lista:
 --   · fornecedor da lista na empresa da lista sai, por mês, em centavos, com IOF;

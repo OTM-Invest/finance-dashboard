@@ -233,6 +233,12 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
+# Login do painel é por código (signInWithOtp + verifyOtp): o template de magic link
+# precisa trazer {{ .Token }}. No remoto, o mesmo HTML vai em Auth → Email Templates.
+[auth.email.template.magic_link]
+subject = "Seu código de acesso ao Finance Dashboard"
+content_path = "./supabase/templates/magic_link.html"
+
 # Uncomment to customize email template
 # [auth.email.template.invite]
 # subject = "You have been invited"
@@ -411,6 +417,11 @@ verify_jwt = true
 # Sugestão de classificação por IA — usa o JWT de quem chama para ler e gravar (RLS).
 [functions.card-lines-suggest]
 verify_jwt = true
+
+# Sincronização da receita do BTG com o CRM — acionada por pg_cron/botão (sem JWT),
+# origem verificada pelo segredo `x-sync-secret`.
+[functions.crm-revenue-sync]
+verify_jwt = false
 
 # Gestão de usuários — exigem JWT (verify_jwt=true, o default) e ainda checam
 # super_admin dentro da função antes de usar o service role.
