@@ -1,3 +1,4 @@
+import { fetchAllPages } from "@/lib/fetchAllPages";
 import { supabase, type Enums } from "@/lib/supabase";
 import type { Json } from "@/types/database";
 
@@ -9,6 +10,11 @@ import type { BalanceScope } from "./scope";
 /**
  * Série mensal do escopo por (item gerencial, área, natureza). Que linha soma o quê é
  * decidido no cliente (compute.ts), sobre esta série.
+ *
+ * Lida em páginas: com a receita do BTG aberta por assessor, o grupo OTM passa de mil
+ * linhas em Jan–Out e o PostgREST cortava o excedente em silêncio — o mesmo mês saía
+ * com valor diferente conforme o tamanho do período. A ordem cobre a chave inteira do
+ * `group by` (o grupo gerencial é função do item), senão as páginas pulam ou repetem.
  */
 export async function fetchMonthlySeries(
   companyIds: string[] | null,
@@ -16,14 +22,21 @@ export async function fetchMonthlySeries(
   to: string,
   basis: AccountingBasis,
 ): Promise<MonthlySeriesRow[]> {
-  const { data, error } = await supabase.rpc("management_monthly_series_multi", {
-    p_company_ids: companyIds ?? undefined,
-    p_from: from,
-    p_to: to,
-    p_basis: basis,
-  });
-  if (error) throw error;
-  return (data ?? []).map((r) => ({
+  const data = await fetchAllPages((start, end) =>
+    supabase
+      .rpc("management_monthly_series_multi", {
+        p_company_ids: companyIds ?? undefined,
+        p_from: from,
+        p_to: to,
+        p_basis: basis,
+      })
+      .order("month")
+      .order("management_account_id", { nullsFirst: true })
+      .order("cost_center_id", { nullsFirst: true })
+      .order("nature", { nullsFirst: true })
+      .range(start, end),
+  );
+  return data.map((r) => ({
     month: r.month,
     managementAccountId: r.management_account_id,
     managementGroupId: r.management_group_id,
